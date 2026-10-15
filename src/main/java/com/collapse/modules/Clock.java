@@ -35,7 +35,7 @@ public class Clock extends Module {
         Draw.ring(ctx, x, y, total, hh, 8, 0x1FFFFFFF);
         Fonts.BOLD.draw(ctx, time, x + 7, y + 4, size, 0xFFFFFFFF);
         if (session.get()) {
-            ctx.fill((int) (x + 7 + tw + 5), (int) y + 4, (int) (x + 7 + tw + 6), (int) y + hh - 4, 0x33FFFFFF);
+            ctx.fill((int) (x + 7 + tw + 5), (int) y + 4, (int) (x + 7 + tw + 6), (int) (y + hh - 4), 0x33FFFFFF);
             Fonts.MEDIUM.draw(ctx, ses, x + 7 + tw + 11, y + 4.5f, 8f, Theme.accent());
         }
     }
