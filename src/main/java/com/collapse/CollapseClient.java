@@ -29,24 +29,21 @@ public class CollapseClient implements ClientModInitializer {
                 "key.collapse.zoom", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_C, KeyBinding.Category.MISC));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (menuKey.wasPressed()) {
-                if (client.currentScreen == null) {
-                    client.setScreen(ClickMenuScreen.create());
-                } else {
-                    client.setScreen(null);
+            try {
+                while (menuKey.wasPressed()) {
+                    if (client.currentScreen == null) client.setScreen(ClickMenuScreen.create());
                 }
-            }
-            Module zoom = ModuleManager.byName("Zoom");
-            if (zoom != null) {
-                if (zoomKey.isPressed()) {
-                    if (!zoom.isEnabled()) zoom.setEnabled(true);
-                } else if (zoom.isEnabled()) {
-                    zoom.setEnabled(false);
+                Module zoom = ModuleManager.byName("Zoom");
+                if (zoom != null && client.currentScreen == null) {
+                    if (zoomKey.isPressed()) { if (!zoom.isEnabled()) zoom.setEnabled(true); }
+                    else if (zoom.isEnabled()) zoom.setEnabled(false);
                 }
+            } catch (Throwable t) {
+                LOGGER.error("Key handler error", t);
             }
         });
 
         CollapseHud.register();
-        LOGGER.info("{} loaded", NAME);
+        LOGGER.info("{} loaded, modules: {}", NAME, ModuleManager.MODULES.size());
     }
 }

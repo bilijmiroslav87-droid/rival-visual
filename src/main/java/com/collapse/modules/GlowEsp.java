@@ -1,78 +1,52 @@
 package com.collapse.modules;
 
-import com.collapse.CollapseClient;
 import com.collapse.Module;
-import net.minecraft.client.MinecraftClient;
+import com.collapse.settings.BoolSetting;
+import com.collapse.settings.NumSetting;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.text.Text;
 
 import java.util.HashSet;
 import java.util.Set;
 
 public class GlowEsp extends Module {
+    private final BoolSetting players = add(new BoolSetting("Players", true));
+    private final BoolSetting mobs = add(new BoolSetting("Mobs", true));
+    private final NumSetting range = add(new NumSetting("Range", 64, 8, 128, 1));
     private final Set<LivingEntity> glowed = new HashSet<>();
-    private boolean players = true;
-    private boolean mobs = true;
-    private double range = 64.0;
 
     public GlowEsp() {
         super("GlowESP", "Подсветка сущностей сквозь стены", Category.VISUALS);
     }
 
-    public void setPlayers(boolean players) { this.players = players; }
-    public void setMobs(boolean mobs) { this.mobs = mobs; }
-    public void setRange(double range) { this.range = range; }
-
     @Override
     public void onTick() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null || client.player == null) {
-            clearGlow();
-            return;
-        }
+        if (mc.world == null || mc.player == null) { clear(); return; }
+        double r2 = range.get() * range.get();
 
         glowed.removeIf(e -> {
-            boolean invalid = e.isRemoved() || !e.isAlive()
-                    || e.squaredDistanceTo(client.player) > range * range;
-            if (invalid && e.isGlowing()) e.setGlowing(false);
-            return invalid;
+            boolean bad = e.isRemoved() || !e.isAlive() || e.squaredDistanceTo(mc.player) > r2;
+            if (bad && e.isGlowing()) e.setGlowing(false);
+            return bad;
         });
 
-        for (Entity e : client.world.getEntities()) {
-            if (!(e instanceof LivingEntity living)) continue;
-            if (living == client.player) continue;
-            if (living.isAlive() && isTarget(living)
-                    && living.squaredDistanceTo(client.player) <= range * range) {
-                if (!living.isGlowing()) {
-                    living.setGlowing(true);
-                    glowed.add(living);
-                }
+        for (Entity e : mc.world.getEntities()) {
+            if (!(e instanceof LivingEntity l) || l == mc.player || e instanceof ArmorStandEntity) continue;
+            boolean isPlayer = l instanceof PlayerEntity;
+            if (isPlayer ? !players.get() : !mobs.get()) continue;
+            if (l.isAlive() && l.squaredDistanceTo(mc.player) <= r2 && !l.isGlowing()) {
+                l.setGlowing(true);
+                glowed.add(l);
             }
         }
     }
 
-    private boolean isTarget(LivingEntity e) {
-        boolean isPlayer = e instanceof PlayerEntity;
-        return (players && isPlayer) || (mobs && !isPlayer);
-    }
-
-    private void clearGlow() {
-        for (LivingEntity e : glowed) {
-            if (e.isGlowing() && !e.isRemoved()) e.setGlowing(false);
-        }
+    private void clear() {
+        for (LivingEntity e : glowed) if (!e.isRemoved() && e.isGlowing()) e.setGlowing(false);
         glowed.clear();
     }
 
-    @Override
-    protected void onDisable() { clearGlow(); }
-
-    @Override
-    protected void onEnable() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player != null) {
-            client.player.sendMessage(Text.literal("§7[§bCollapse§7] §f" + getName() + " §aвключён"), false);
-        }
-    }
+    @Override protected void onDisable() { clear(); }
 }

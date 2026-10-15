@@ -1,30 +1,29 @@
 package com.collapse.modules;
 
 import com.collapse.Module;
-import net.minecraft.client.MinecraftClient;
+import com.collapse.settings.NumSetting;
 
 public class Zoom extends Module {
-    private Integer previousFov = null;
+    private final NumSetting fov = add(new NumSetting("Zoom FOV", 15, 5, 60, 1));
+    private Integer prev = null;
 
     public Zoom() {
-        super("Zoom", "Приближение, зажми C", Category.MISC);
+        super("Zoom", "Приближение (зажми C)", Category.VISUALS);
     }
 
     @Override
     protected void onEnable() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.options != null) {
-            previousFov = client.options.getFov().getValue();
-            client.options.getFov().setValue(15);
-        }
+        if (mc.options != null) prev = mc.options.getFov().getValue();
+    }
+
+    @Override
+    public void onTick() {
+        if (mc.options != null) mc.options.getFov().setValue(fov.i());
     }
 
     @Override
     protected void onDisable() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.options != null && previousFov != null) {
-            client.options.getFov().setValue(previousFov);
-            previousFov = null;
-        }
+        if (mc.options != null && prev != null) mc.options.getFov().setValue(prev);
+        prev = null;
     }
 }
