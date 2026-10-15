@@ -24,16 +24,14 @@ public class Crosshair extends Module {
         if (dyn.get() && mc.player != null && (com.collapse.util.Keys.moving() || !mc.player.isOnGround())) g += 3;
         int s = size.i();
         if (style.is("Dot")) {
-            ctx.fill(cx - 1, cy - 1, cx + 2, cy + 2, col);
+            com.collapse.render.Draw.glow(ctx, cx - 2, cy - 2, 4, 4, 3, com.collapse.render.Draw.alpha(col, 0.35f));
+            com.collapse.render.Draw.circle(ctx, cx - 2, cy - 2, 4, col);
             return;
         }
         if (style.is("Circle")) {
-            int r = s + 2;
-            for (int a = 0; a < 360; a += 6) {
-                int x = cx + (int) Math.round(Math.cos(Math.toRadians(a)) * r);
-                int y = cy + (int) Math.round(Math.sin(Math.toRadians(a)) * r);
-                ctx.fill(x, y, x + 1, y + 1, col);
-            }
+            int r = s + 2 + (g - gap.i());
+            com.collapse.render.Draw.ring(ctx, cx - r, cy - r, r * 2, r * 2, r, 0x90000000);
+            com.collapse.render.Draw.ring(ctx, cx - r + 0.5f, cy - r + 0.5f, r * 2 - 1, r * 2 - 1, r, col);
             return;
         }
         ctx.fill(cx - g - s - 1, cy - 1, cx - g + 1, cy + 2, 0xB0000000);

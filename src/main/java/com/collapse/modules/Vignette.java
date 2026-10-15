@@ -17,7 +17,7 @@ public class Vignette extends Module {
         for (int i = 0; i < steps; i++) {
             float t = 1 - i / (float) steps;
             int a = (int) (power.i() * t * t);
-            int col = a << 24;
+            int col = (a << 24) | (com.collapse.util.Theme.mix(0xFF000000, com.collapse.util.Theme.accent(), 0.10f) & 0xFFFFFF);
             int d = size * i / steps, d2 = size * (i + 1) / steps;
             ctx.fill(0, d, w, d2, col);
             ctx.fill(0, h - d2, w, h - d, col);

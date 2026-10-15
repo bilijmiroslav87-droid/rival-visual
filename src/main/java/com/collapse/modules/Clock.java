@@ -31,8 +31,9 @@ public class Clock extends Module {
         float total = 14 + tw + sw;
         float x = w / 2f - total / 2f, y = 6, hh = 16;
         Draw.shadow(ctx, x, y, total, hh, 8, 8);
-        Draw.roundRect(ctx, x, y, total, hh, 8, 0xDD0E0E14);
-        Draw.ring(ctx, x, y, total, hh, 8, 0x1FFFFFFF);
+        Draw.roundRect(ctx, x, y, total, hh, 8, com.collapse.hud.CollapseHud.GLASS);
+        Draw.ring(ctx, x, y, total, hh, 8, 0x26FFFFFF);
+        Draw.gradientH(ctx, x + 6, y + hh - 1.4f, total - 12, 1.2f, Draw.alpha(Theme.accent(), 0.9f), Draw.alpha(Theme.accent2(), 0.9f));
         Fonts.BOLD.draw(ctx, time, x + 7, y + 4, size, 0xFFFFFFFF);
         if (session.get()) {
             ctx.fill((int) (x + 7 + tw + 5), (int) y + 4, (int) (x + 7 + tw + 6), (int) (y + hh - 4), 0x33FFFFFF);

@@ -27,8 +27,10 @@ public class FpsInfo extends Module {
         for (int i = 0; i < 3; i++) total += Math.max(Fonts.BOLD.width(vals[i], size), Fonts.MEDIUM.width(labels[i], lsize)) + (i < 2 ? gap : 0);
         float x = 6, y = h - 40, hh = 26;
         Draw.shadow(ctx, x, y, total, hh, 8, 8);
-        Draw.roundRect(ctx, x, y, total, hh, 8, 0xC8101018);
-        Draw.ring(ctx, x, y, total, hh, 8, 0x22FFFFFF);
+        Draw.roundRect(ctx, x, y, total, hh, 8, com.collapse.hud.CollapseHud.GLASS);
+        Draw.roundRect(ctx, x + 1, y + 1, total - 2, hh / 2f - 1, 7, 0x0CFFFFFF);
+        Draw.ring(ctx, x, y, total, hh, 8, 0x26FFFFFF);
+        Draw.gradientH(ctx, x + 6, y + hh - 1.4f, total - 12, 1.2f, Draw.alpha(Theme.accent(), 0.9f), Draw.alpha(Theme.accent2(), 0.9f));
         float cx = x + 7;
         for (int i = 0; i < 3; i++) {
             float cw = Math.max(Fonts.BOLD.width(vals[i], size), Fonts.MEDIUM.width(labels[i], lsize));

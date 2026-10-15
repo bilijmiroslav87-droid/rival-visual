@@ -2,9 +2,9 @@ package com.collapse.util;
 
 /** Цветовые темы клиента: акцент + второй цвет для градиентов. */
 public final class Theme {
-    public static final String[] NAMES = {"Aurora", "Violet", "Crimson", "Mint", "Candy", "Sunset", "Ice", "Mono"};
-    private static final int[] ACCENT = {0xFF5B8CFF, 0xFFA66BFF, 0xFFFF4D6D, 0xFF2FE3A0, 0xFFFF6BC1, 0xFFFF9A3D, 0xFF6FE7FF, 0xFFE8E8F0};
-    private static final int[] SECOND = {0xFFB06BFF, 0xFFFF5CA8, 0xFFFF9A3D, 0xFF3DB8FF, 0xFFA05CFF, 0xFFFF4D6D, 0xFF5B8CFF, 0xFF8A8A9A};
+    public static final String[] NAMES = {"Aurora", "Violet", "Crimson", "Mint", "Candy", "Sunset", "Ice", "Mono", "Neon", "Ocean", "Gold", "Sakura"};
+    private static final int[] ACCENT = {0xFF5B8CFF, 0xFFA66BFF, 0xFFFF4D6D, 0xFF2FE3A0, 0xFFFF6BC1, 0xFFFF9A3D, 0xFF6FE7FF, 0xFFE8E8F0, 0xFF39FF88, 0xFF1AA6FF, 0xFFFFC53D, 0xFFFF8FB8};
+    private static final int[] SECOND = {0xFFB06BFF, 0xFFFF5CA8, 0xFFFF9A3D, 0xFF3DB8FF, 0xFFA05CFF, 0xFFFF4D6D, 0xFF5B8CFF, 0xFF8A8A9A, 0xFF00E5FF, 0xFF6C5CFF, 0xFFFF7A1A, 0xFFB98CFF};
     private static int index = 0;
     /** Если true, акцент плавно переливается между двумя цветами темы. */
     public static boolean animated = true;

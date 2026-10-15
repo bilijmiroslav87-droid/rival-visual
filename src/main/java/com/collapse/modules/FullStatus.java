@@ -21,8 +21,9 @@ public class FullStatus extends Module {
             int sec = e.getDuration() / 20;
             String t = String.format("%d:%02d", sec / 60, sec % 60);
             float nw = Fonts.MEDIUM.width(name, 9f), tw = Fonts.MEDIUM.width(t, 9f);
-            Draw.roundRect(ctx, 4, y, nw + tw + 22, 14, 4, 0xB0101014);
-            Draw.roundRect(ctx, 4, y, 2, 14, 1, Theme.accent());
+            Draw.roundRect(ctx, 4, y, nw + tw + 22, 14, 6, com.collapse.hud.CollapseHud.GLASS);
+            Draw.ring(ctx, 4, y, nw + tw + 22, 14, 6, 0x22FFFFFF);
+            Draw.roundRect(ctx, 5, y + 2.5f, 2, 9, 1, Theme.accent());
             Fonts.MEDIUM.draw(ctx, name, 11, y + 3, 9f, 0xFFFFFFFF);
             Fonts.MEDIUM.draw(ctx, t, 11 + nw + 8, y + 3, 9f, 0xFFB0B0BC);
             y += 17;

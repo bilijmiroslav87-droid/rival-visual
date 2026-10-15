@@ -23,7 +23,7 @@ public class Armor extends Module {
             ctx.drawItem(st, x, y - 16);
             if (st.isDamageable()) {
                 float f = 1f - st.getDamage() / (float) st.getMaxDamage();
-                Draw.roundRect(ctx, x, y + 1, 16, 3, 1, 0xFF2A2A34);
+                Draw.roundRect(ctx, x, y + 1, 16, 3, 1.5f, 0xFF2A2A34);
                 Draw.roundRect(ctx, x, y + 1, Math.max(2, 16 * f), 3, 1, com.collapse.util.Theme.mix(0xFFFF3B3B, 0xFF3DDC84, f));
             }
             x += 20;
