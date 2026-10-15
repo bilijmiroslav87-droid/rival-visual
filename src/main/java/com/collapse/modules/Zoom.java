@@ -9,6 +9,7 @@ public class Zoom extends Module {
 
     public Zoom() {
         super("Zoom", "Приближение (зажми C)", Category.VISUALS);
+        noSave();
     }
 
     @Override

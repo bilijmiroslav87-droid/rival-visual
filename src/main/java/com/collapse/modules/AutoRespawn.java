@@ -9,8 +9,6 @@ public class AutoRespawn extends Module {
 
     @Override
     public void onTick() {
-        if (mc.player != null && mc.player.isDead()) {
-            mc.player.requestRespawn();
-        }
+        if (mc.player != null && mc.player.isDead()) mc.player.requestRespawn();
     }
 }

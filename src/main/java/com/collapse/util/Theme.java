@@ -1,8 +1,9 @@
 package com.collapse.util;
 
 public final class Theme {
-    public static final String[] NAMES = {"Blue", "Purple", "Red", "Green", "Pink", "Orange"};
+    public static final String[] NAMES = {"Ocean", "Violet", "Blood", "Toxic", "Candy", "Sunset"};
     private static final int[] ACCENT = {0xFF4A9EFF, 0xFF9B6BFF, 0xFFFF4D5E, 0xFF3DDC84, 0xFFFF6BC1, 0xFFFF9A3D};
+    private static final int[] SECOND = {0xFF7A5CFF, 0xFFFF5CA8, 0xFFFF9A3D, 0xFF3DDCD0, 0xFFA05CFF, 0xFFFF4D5E};
     private static int index = 0;
 
     private Theme() {}
@@ -10,6 +11,9 @@ public final class Theme {
     public static int accent() { return ACCENT[index]; }
     public static String name() { return NAMES[index]; }
     public static void next() { index = (index + 1) % ACCENT.length; }
+    public static int index() { return index; }
+    public static void setIndex(int i) { if (i >= 0 && i < ACCENT.length) index = i; }
+    public static int accent2() { return SECOND[index]; }
 
     public static int withAlpha(int color, int alpha) {
         return (alpha << 24) | (color & 0xFFFFFF);

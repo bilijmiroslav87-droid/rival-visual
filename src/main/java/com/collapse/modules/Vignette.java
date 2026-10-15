@@ -5,7 +5,7 @@ import com.collapse.settings.NumSetting;
 import net.minecraft.client.gui.DrawContext;
 
 public class Vignette extends Module {
-    private final NumSetting power = add(new NumSetting("Power", 120, 20, 220, 10));
+    private final NumSetting power = add(new NumSetting("Power", 140, 20, 230, 10));
 
     public Vignette() {
         super("Vignette", "Затемнение по краям экрана", Category.VISUALS);
@@ -13,10 +13,10 @@ public class Vignette extends Module {
 
     @Override
     public void onHud(DrawContext ctx, int w, int h) {
-        int size = Math.min(w, h) / 4;
-        int steps = 10;
+        int size = Math.min(w, h) / 3, steps = 12;
         for (int i = 0; i < steps; i++) {
-            int a = (int) (power.i() * (1 - i / (float) steps));
+            float t = 1 - i / (float) steps;
+            int a = (int) (power.i() * t * t);
             int col = a << 24;
             int d = size * i / steps, d2 = size * (i + 1) / steps;
             ctx.fill(0, d, w, d2, col);

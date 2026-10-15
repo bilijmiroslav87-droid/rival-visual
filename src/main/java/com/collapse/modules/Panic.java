@@ -6,13 +6,12 @@ import com.collapse.ModuleManager;
 public class Panic extends Module {
     public Panic() {
         super("Panic", "Выключает все модули разом", Category.MISC);
+        noSave();
     }
 
     @Override
     protected void onEnable() {
-        for (Module m : ModuleManager.MODULES) {
-            if (m != this) m.setEnabled(false);
-        }
+        for (Module m : ModuleManager.MODULES) if (m != this) m.setEnabled(false);
         setEnabled(false);
     }
 }

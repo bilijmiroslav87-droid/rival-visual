@@ -22,6 +22,9 @@ public abstract class Module {
     private final Category category;
     private final List<Setting<?>> settings = new ArrayList<>();
     private boolean enabled = false;
+    private int bind = -1;
+    private boolean saveEnabled = true;
+    public final com.collapse.render.Anim anim = new com.collapse.render.Anim(0f, 12f);
 
     protected Module(String name, String description, Category category) {
         this.name = name;
@@ -39,10 +42,16 @@ public abstract class Module {
     public Category getCategory() { return category; }
     public List<Setting<?>> getSettings() { return settings; }
     public boolean isEnabled() { return enabled; }
+    public int getBind() { return bind; }
+    public void setBind(int k) { this.bind = k; }
+    public boolean isSaveEnabled() { return saveEnabled; }
+    protected void noSave() { this.saveEnabled = false; }
 
     public void setEnabled(boolean value) {
         if (enabled == value) return;
         enabled = value;
+        anim.set(value ? 1f : 0f);
+        try { ModuleManager.notifyToggle(this); } catch (Throwable ignored) {}
         try {
             if (enabled) onEnable(); else onDisable();
         } catch (Throwable t) {

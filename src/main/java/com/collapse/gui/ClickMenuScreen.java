@@ -3,7 +3,12 @@ package com.collapse.gui;
 import com.collapse.CollapseClient;
 import com.collapse.Module;
 import com.collapse.ModuleManager;
+import com.collapse.config.Config;
+import com.collapse.render.Anim;
+import com.collapse.render.Draw;
+import com.collapse.render.Fonts;
 import com.collapse.settings.BoolSetting;
+import com.collapse.settings.ColorSetting;
 import com.collapse.settings.ModeSetting;
 import com.collapse.settings.NumSetting;
 import com.collapse.settings.Setting;
@@ -15,225 +20,294 @@ import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-/**
- * Меню в стиле Nursultan: тёмное окно, сайдбар с вкладками слева,
- * справа карточки модулей. ПКМ по карточке раскрывает настройки.
- * Рисуется только через DrawContext.fill, без blur и шейдеров.
- */
+/** Меню в стиле Nursultan/Celestial: окно со скруглениями, сайдбар, карточки, слайдеры, анимации. */
 public class ClickMenuScreen extends Screen {
-    private static final int BG = 0xF0141418;
-    private static final int SIDEBAR = 0xFF101014;
-    private static final int CARD = 0xFF1C1C22;
-    private static final int CARD_HOVER = 0xFF24242C;
-    private static final int TEXT = 0xFFFFFFFF;
-    private static final int MUTED = 0xFF8A8A96;
+    private static final int C_BG = 0xF2121218;
+    private static final int C_SIDE = 0xFF0E0E13;
+    private static final int C_CARD = 0xFF1A1A22;
+    private static final int C_CARD_H = 0xFF21212B;
+    private static final int C_LINE = 0xFF24242E;
+    private static final int C_TEXT = 0xFFF2F2F7;
+    private static final int C_MUTED = 0xFF8A8A9A;
 
     private Module.Category selected = Module.Category.COMBAT;
-    private Module settingsOf = null;
-    private int scroll = 0;
+    private Module open = null;          // модуль, чьи настройки показаны
+    private Module binding = null;       // модуль, которому назначается клавиша
+    private final Anim openAnim = new Anim(0f, 11f);
+    private final Anim scrollAnim = new Anim(0f, 16f);
+    private final Anim tabBar = new Anim(0f, 14f);
+    private final Anim settingsAnim = new Anim(0f, 14f);
+    private final Map<Module, Anim> hover = new HashMap<>();
+    private final Map<Setting<?>, Anim> sliderAnim = new HashMap<>();
+    private final Map<Setting<?>, Anim> boolAnim = new HashMap<>();
+    private final List<Hit> hits = new ArrayList<>();
     private NumSetting dragging = null;
-    private int dragX, dragW;
+    private float dragX, dragW;
+    private float scroll = 0, maxScroll = 0;
+    private String search = "";
+    private boolean searching = false;
+    private boolean closing = false;
 
-    private int wx, wy, ww, wh;
-    private final List<Runnable> clicks = new ArrayList<>();
+    private float wx, wy, ww, wh;
 
-    private ClickMenuScreen() {
-        super(Text.literal("Collapse Client"));
-    }
+    private record Hit(float x, float y, float w, float h, int type, Object a, int b) {}
+    private static final int H_TAB = 1, H_MODULE = 2, H_SETTING = 3, H_THEME = 4, H_SEARCH = 5, H_BACK = 6;
 
-    public static ClickMenuScreen create() {
-        return new ClickMenuScreen();
-    }
+    private ClickMenuScreen() { super(Text.literal("Collapse Client")); }
+    public static ClickMenuScreen create() { return new ClickMenuScreen(); }
 
     @Override
     protected void init() {
-        ww = Math.min(this.width - 20, 420);
-        wh = Math.min(this.height - 16, 260);
-        wx = (this.width - ww) / 2;
-        wy = (this.height - wh) / 2;
+        openAnim.snap(0f);
+        openAnim.set(1f);
+        tabBar.snap(selected.ordinal());
     }
 
-    private List<Module> modulesOf(Module.Category c) {
-        List<Module> list = new ArrayList<>();
-        for (Module m : ModuleManager.MODULES) if (m.getCategory() == c) list.add(m);
-        return list;
+    @Override
+    public void close() {
+        Config.save();
+        super.close();
+    }
+
+    private Anim hov(Module m) { return hover.computeIfAbsent(m, k -> new Anim(0f, 16f)); }
+    private Anim bool(Setting<?> s) { return boolAnim.computeIfAbsent(s, k -> new Anim(((BoolSetting) s).get() ? 1f : 0f, 18f)); }
+    private Anim sl(NumSetting s) { return sliderAnim.computeIfAbsent(s, k -> new Anim((float) s.getPercent(), 20f)); }
+
+    private List<Module> list() {
+        List<Module> out = new ArrayList<>();
+        for (Module m : ModuleManager.MODULES) {
+            if (!search.isEmpty()) {
+                if (m.getName().toLowerCase().contains(search.toLowerCase())) out.add(m);
+            } else if (m.getCategory() == selected) out.add(m);
+        }
+        return out;
     }
 
     @Override
     public void render(DrawContext ctx, int mx, int my, float delta) {
         try {
-            ctx.fill(0, 0, this.width, this.height, 0x78000000);
-            draw(ctx, mx, my);
+            float o = Anim.ease(openAnim.get());
+            ctx.fill(0, 0, width, height, (int) (150 * o) << 24);
+
+            ww = Math.min(width - 16, 440);
+            wh = Math.min(height - 12, 270);
+            wx = (width - ww) / 2f;
+            wy = (height - wh) / 2f + (1 - o) * 14;
+            hits.clear();
+            drawWindow(ctx, mx, my, o);
         } catch (Throwable t) {
             CollapseClient.LOGGER.error("Menu render error", t);
         }
     }
 
-    private void draw(DrawContext ctx, int mx, int my) {
-        clicks.clear();
-        tabHits.clear();
-        cardHits.clear();
-        settingHits.clear();
-        int accent = Theme.accent();
-        int sideW = 86;
+    private void drawWindow(DrawContext ctx, int mx, int my, float o) {
+        int acc = Draw.alpha(Theme.accent(), o);
+        Draw.shadow(ctx, wx, wy, ww, wh, 10, 6);
+        Draw.roundRect(ctx, wx - 1, wy - 1, ww + 2, wh + 2, 11, Draw.alpha(Theme.withAlpha(Theme.accent(), 90), o));
+        Draw.roundRect(ctx, wx, wy, ww, wh, 10, Draw.alpha(C_BG, o));
 
-        // окно
-        ctx.fill(wx - 1, wy - 1, wx + ww + 1, wy + wh + 1, Theme.withAlpha(accent, 140));
-        ctx.fill(wx, wy, wx + ww, wy + wh, BG);
-        ctx.fill(wx, wy, wx + sideW, wy + wh, SIDEBAR);
-        ctx.fill(wx + sideW, wy, wx + sideW + 1, wy + wh, 0xFF26262E);
+        float sideW = 92;
+        Draw.roundRect(ctx, wx, wy, sideW, wh, 10, Draw.alpha(C_SIDE, o));
+        ctx.fill((int) (wx + sideW - 10), (int) wy, (int) (wx + sideW), (int) (wy + wh), Draw.alpha(C_SIDE, o));
+        ctx.fill((int) (wx + sideW), (int) (wy + 8), (int) (wx + sideW + 1), (int) (wy + wh - 8), Draw.alpha(C_LINE, o));
 
         // логотип
-        ctx.drawTextWithShadow(textRenderer, "Collapse", wx + 10, wy + 10, accent);
-        ctx.drawTextWithShadow(textRenderer, "Client", wx + 10, wy + 21, TEXT);
+        Draw.roundRect(ctx, wx + 12, wy + 12, 22, 22, 7, acc);
+        Fonts.BOLD.drawCentered(ctx, "C", wx + 23, wy + 16, 14f, Draw.alpha(0xFFFFFFFF, o));
+        Fonts.BOLD.draw(ctx, "Collapse", wx + 40, wy + 13, 10.5f, Draw.alpha(C_TEXT, o));
+        Fonts.MEDIUM.draw(ctx, "SpookyTime", wx + 40, wy + 24, 8f, Draw.alpha(C_MUTED, o));
 
         // вкладки
-        int ty = wy + 44;
+        float ty = wy + 50;
+        tabBar.set(selected.ordinal());
+        float barY = ty + tabBar.get() * 26;
+        if (search.isEmpty()) {
+            Draw.roundRect(ctx, wx + 8, barY, sideW - 16, 22, 7, Draw.alpha(Theme.withAlpha(Theme.accent(), 60), o));
+            Draw.roundRect(ctx, wx + 8, barY + 5, 3, 12, 1, acc);
+        }
         for (Module.Category c : Module.Category.values()) {
-            boolean sel = c == selected;
-            boolean hov = inside(mx, my, wx + 6, ty, sideW - 12, 20);
-            if (sel) {
-                ctx.fill(wx + 6, ty, wx + sideW - 6, ty + 20, Theme.withAlpha(accent, 70));
-                ctx.fill(wx + 6, ty, wx + 8, ty + 20, accent);
-            } else if (hov) {
-                ctx.fill(wx + 6, ty, wx + sideW - 6, ty + 20, 0x30FFFFFF);
-            }
-            int count = modulesOf(c).size();
-            ctx.drawTextWithShadow(textRenderer, c.label, wx + 14, ty + 6, sel ? TEXT : MUTED);
-            String cnt = String.valueOf(count);
-            ctx.drawTextWithShadow(textRenderer, cnt, wx + sideW - 12 - textRenderer.getWidth(cnt), ty + 6, MUTED);
-            final Module.Category cc = c;
-            clicks.add(() -> {});
-            tabHits.add(new int[]{wx + 6, ty, sideW - 12, 20, c.ordinal()});
-            ty += 23;
+            boolean sel = c == selected && search.isEmpty();
+            boolean hv = in(mx, my, wx + 8, ty, sideW - 16, 22);
+            if (hv && !sel) Draw.roundRect(ctx, wx + 8, ty, sideW - 16, 22, 7, Draw.alpha(0x22FFFFFF, o));
+            Fonts.MEDIUM.draw(ctx, c.label, wx + 20, ty + 6, 10f, Draw.alpha(sel ? C_TEXT : C_MUTED, o));
+            hits.add(new Hit(wx + 8, ty, sideW - 16, 22, H_TAB, c, 0));
+            ty += 26;
         }
 
         // тема
-        int themeY = wy + wh - 26;
-        boolean thov = inside(mx, my, wx + 6, themeY, sideW - 12, 18);
-        ctx.fill(wx + 6, themeY, wx + sideW - 6, themeY + 18, thov ? CARD_HOVER : CARD);
-        ctx.fill(wx + 9, themeY + 5, wx + 17, themeY + 13, accent);
-        ctx.drawTextWithShadow(textRenderer, Theme.name(), wx + 22, themeY + 5, TEXT);
-        themeHit = new int[]{wx + 6, themeY, sideW - 12, 18};
+        float thY = wy + wh - 30;
+        boolean thh = in(mx, my, wx + 8, thY, sideW - 16, 22);
+        Draw.roundRect(ctx, wx + 8, thY, sideW - 16, 22, 7, Draw.alpha(thh ? C_CARD_H : C_CARD, o));
+        Draw.roundRect(ctx, wx + 15, thY + 6, 10, 10, 5, acc);
+        Fonts.MEDIUM.draw(ctx, Theme.name(), wx + 30, thY + 6, 9.5f, Draw.alpha(C_TEXT, o));
+        hits.add(new Hit(wx + 8, thY, sideW - 16, 22, H_THEME, null, 0));
 
-        // область контента
-        int cx = wx + sideW + 10;
-        int cy = wy + 10;
-        int cw = ww - sideW - 20;
-        int ch = wh - 20;
+        // шапка контента
+        float cx = wx + sideW + 14, cw = ww - sideW - 28;
+        float topY = wy + 12;
+        String title = open != null ? open.getName() : (search.isEmpty() ? selected.label : "Search");
+        Fonts.BOLD.draw(ctx, title, cx, topY, 13f, Draw.alpha(C_TEXT, o));
 
-        ctx.drawTextWithShadow(textRenderer, selected.label, cx, cy, TEXT);
-        String hint = settingsOf == null ? "ЛКМ вкл/выкл  ПКМ настройки" : "ПКМ назад";
-        ctx.drawTextWithShadow(textRenderer, hint, cx + cw - textRenderer.getWidth(hint), cy, MUTED);
+        // поиск / назад
+        if (open != null) {
+            float bw = 54;
+            boolean bh = in(mx, my, cx + cw - bw, topY - 2, bw, 18);
+            Draw.roundRect(ctx, cx + cw - bw, topY - 2, bw, 18, 6, Draw.alpha(bh ? C_CARD_H : C_CARD, o));
+            Fonts.MEDIUM.drawCentered(ctx, "< Back", cx + cw - bw / 2, topY + 2, 9.5f, Draw.alpha(C_TEXT, o));
+            hits.add(new Hit(cx + cw - bw, topY - 2, bw, 18, H_BACK, null, 0));
+        } else {
+            float sw = 96;
+            Draw.roundRect(ctx, cx + cw - sw, topY - 2, sw, 18, 6, Draw.alpha(searching ? C_CARD_H : C_CARD, o));
+            String shown = search.isEmpty() ? (searching ? "|" : "Search...") : search + (searching && (System.currentTimeMillis() / 500) % 2 == 0 ? "|" : "");
+            Fonts.MEDIUM.draw(ctx, shown, cx + cw - sw + 7, topY + 2, 9.5f, Draw.alpha(search.isEmpty() ? C_MUTED : C_TEXT, o));
+            hits.add(new Hit(cx + cw - sw, topY - 2, sw, 18, H_SEARCH, null, 0));
+        }
 
-        int top = cy + 16;
-        int viewH = ch - 16;
-        ctx.enableScissor(cx, top, cx + cw, top + viewH);
-
-        if (settingsOf == null) drawModules(ctx, mx, my, cx, top, cw);
-        else drawSettings(ctx, mx, my, cx, top, cw);
-
+        float viewY = topY + 24, viewH = wh - 24 - 28;
+        ctx.enableScissor((int) cx - 2, (int) viewY, (int) (cx + cw + 2), (int) (viewY + viewH));
+        scrollAnim.set(scroll);
+        float sc = scrollAnim.get();
+        if (open == null) drawModules(ctx, mx, my, cx, viewY - sc, cw, viewY, viewH, o);
+        else drawSettings(ctx, mx, my, cx, viewY - sc, cw, viewY, viewH, o);
         ctx.disableScissor();
-        scrollView = new int[]{cx, top, cw, viewH};
+
+        // подсказка
+        String hint = open != null ? "ПКМ или Back: назад" : "ЛКМ вкл/выкл   ПКМ настройки   СКМ бинд";
+        if (binding != null) hint = "Нажми клавишу для " + binding.getName() + " (ESC сброс)";
+        Fonts.MEDIUM.draw(ctx, hint, cx, wy + wh - 18, 8.5f, Draw.alpha(C_MUTED, o));
+        String cnt = ModuleManager.MODULES.size() + " modules";
+        Fonts.MEDIUM.drawRight(ctx, cnt, cx + cw, wy + wh - 18, 8.5f, Draw.alpha(C_MUTED, o));
     }
 
-    // ---- хиты ----
-    private final List<int[]> tabHits = new ArrayList<>();
-    private int[] themeHit = null;
-    private int[] scrollView = null;
-    private final List<Object[]> cardHits = new ArrayList<>();
-
-    private void drawModules(DrawContext ctx, int mx, int my, int cx, int top, int cw) {
-        int accent = Theme.accent();
-        List<Module> list = modulesOf(selected);
-        int cols = cw >= 250 ? 2 : 1;
-        int gap = 6;
-        int cardW = (cw - gap * (cols - 1)) / cols;
-        int cardH = 34;
-
-        for (int i = 0; i < list.size(); i++) {
-            Module m = list.get(i);
-            int col = i % cols, row = i / cols;
-            int x = cx + col * (cardW + gap);
-            int y = top + row * (cardH + gap) - scroll;
-            boolean hov = inside(mx, my, x, y, cardW, cardH)
-                    && my >= top && my <= scrollView_bottom(top);
-            ctx.fill(x, y, x + cardW, y + cardH, hov ? CARD_HOVER : CARD);
-            if (m.isEnabled()) {
-                ctx.fill(x, y, x + 2, y + cardH, accent);
-                ctx.fill(x + 2, y, x + cardW, y + cardH, Theme.withAlpha(accent, 28));
+    private void drawModules(DrawContext ctx, int mx, int my, float cx, float top, float cw, float viewY, float viewH, float o) {
+        List<Module> mods = list();
+        int cols = cw >= 280 ? 2 : 1;
+        float gap = 8, cardW = (cw - gap * (cols - 1)) / cols, cardH = 42;
+        for (int i = 0; i < mods.size(); i++) {
+            Module m = mods.get(i);
+            float x = cx + (i % cols) * (cardW + gap);
+            float y = top + (i / cols) * (cardH + gap);
+            if (y + cardH < viewY - 4 || y > viewY + viewH + 4) {
+                hits.add(new Hit(x, y, cardW, cardH, H_MODULE, m, 0));
+                continue;
             }
-            ctx.drawTextWithShadow(textRenderer, m.getName(), x + 8, y + 6, m.isEnabled() ? TEXT : 0xFFD0D0D8);
-            String d = m.getDescription();
-            while (textRenderer.getWidth(d) > cardW - 40 && d.length() > 4) d = d.substring(0, d.length() - 2);
-            if (!d.equals(m.getDescription())) d += "..";
-            ctx.drawTextWithShadow(textRenderer, d, x + 8, y + 19, MUTED);
+            boolean vis = my >= viewY && my <= viewY + viewH;
+            boolean hv = vis && in(mx, my, x, y, cardW, cardH);
+            Anim ha = hov(m);
+            ha.set(hv ? 1f : 0f);
+            float h = ha.get();
+            float on = m.anim.get();
+
+            int base = Theme.mix(C_CARD, C_CARD_H, h);
+            Draw.roundRect(ctx, x, y, cardW, cardH, 8, Draw.alpha(base, o));
+            if (on > 0.01f) {
+                Draw.roundRect(ctx, x, y, cardW, cardH, 8, Draw.alpha(Theme.withAlpha(Theme.accent(), (int) (40 * on)), o));
+                Draw.roundRect(ctx, x + 1, y + cardH - 3, (cardW - 2) * on, 2, 1, Draw.alpha(Theme.accent(), o * on));
+            }
+            Fonts.BOLD.draw(ctx, m.getName(), x + 11, y + 8, 10.5f, Draw.alpha(on > 0.5f ? C_TEXT : 0xFFD6D6E0, o));
+            String d = trim(m.getDescription(), cardW - 70, 8f);
+            Fonts.MEDIUM.draw(ctx, d, x + 11, y + 23, 8f, Draw.alpha(C_MUTED, o));
 
             // переключатель
-            int sx = x + cardW - 26, sy = y + 11;
-            ctx.fill(sx, sy, sx + 18, sy + 10, m.isEnabled() ? accent : 0xFF3A3A44);
-            int knob = m.isEnabled() ? sx + 10 : sx + 2;
-            ctx.fill(knob, sy + 2, knob + 6, sy + 8, 0xFFFFFFFF);
+            float sx = x + cardW - 36, sy = y + 8;
+            Draw.roundRect(ctx, sx, sy, 26, 14, 7, Draw.alpha(Theme.mix(0xFF33333F, Theme.accent(), on), o));
+            Draw.roundRect(ctx, sx + 2 + 12 * on, sy + 2, 10, 10, 5, Draw.alpha(0xFFFFFFFF, o));
 
-            if (!m.getSettings().isEmpty()) {
-                ctx.drawTextWithShadow(textRenderer, "...", x + cardW - 44, y + 6, MUTED);
+            // бинд / шестерёнка
+            if (m.getBind() > 0) {
+                String kn = keyName(m.getBind());
+                float kw = Fonts.MEDIUM.width(kn, 7.5f) + 8;
+                Draw.roundRect(ctx, x + cardW - kw - 10, y + 27, kw, 11, 4, Draw.alpha(0xFF2A2A36, o));
+                Fonts.MEDIUM.drawCentered(ctx, kn, x + cardW - kw / 2 - 10, y + 29, 7.5f, Draw.alpha(C_MUTED, o));
+            } else if (!m.getSettings().isEmpty()) {
+                Fonts.MEDIUM.drawRight(ctx, "...", x + cardW - 11, y + 26, 10f, Draw.alpha(C_MUTED, o));
             }
-            cardHits.add(new Object[]{x, y, cardW, cardH, m});
+            hits.add(new Hit(x, y, cardW, cardH, H_MODULE, m, 0));
         }
-        int rows = (list.size() + cols - 1) / cols;
-        maxScroll = Math.max(0, rows * (cardH + gap) - (wh - 46));
+        int rows = (mods.size() + cols - 1) / cols;
+        maxScroll = Math.max(0, rows * (cardH + gap) - viewH);
+        if (scroll > maxScroll) scroll = maxScroll;
     }
 
-    private int scrollView_bottom(int top) { return top + (wh - 46); }
+    private void drawSettings(DrawContext ctx, int mx, int my, float cx, float top, float cw, float viewY, float viewH, float o) {
+        Module m = open;
+        float y = top;
+        Fonts.MEDIUM.draw(ctx, m.getDescription(), cx, y, 9f, Draw.alpha(C_MUTED, o));
+        y += 16;
 
-    private int maxScroll = 0;
-    private final List<Object[]> settingHits = new ArrayList<>();
-
-    private void drawSettings(DrawContext ctx, int mx, int my, int cx, int top, int cw) {
-        int accent = Theme.accent();
-        Module m = settingsOf;
-        ctx.drawTextWithShadow(textRenderer, m.getName() + " / настройки", cx, top - scroll, accent);
-        int y = top + 16 - scroll;
-
-        if (m.getSettings().isEmpty()) {
-            ctx.drawTextWithShadow(textRenderer, "У этого модуля нет настроек", cx, y, MUTED);
-        }
+        // карточка включения
+        boolean ho = in(mx, my, cx, y, cw, 30) && my >= viewY && my <= viewY + viewH;
+        float on = m.anim.get();
+        Draw.roundRect(ctx, cx, y, cw, 30, 8, Draw.alpha(ho ? C_CARD_H : C_CARD, o));
+        Fonts.BOLD.draw(ctx, "Enabled", cx + 11, y + 9, 10.5f, Draw.alpha(C_TEXT, o));
+        float sx = cx + cw - 38, sy = y + 8;
+        Draw.roundRect(ctx, sx, sy, 28, 14, 7, Draw.alpha(Theme.mix(0xFF33333F, Theme.accent(), on), o));
+        Draw.roundRect(ctx, sx + 2 + 14 * on, sy + 2, 10, 10, 5, Draw.alpha(0xFFFFFFFF, o));
+        hits.add(new Hit(cx, y, cw, 30, H_MODULE, m, 99));
+        y += 36;
 
         for (Setting<?> s : m.getSettings()) {
-            int h = 26;
-            ctx.fill(cx, y, cx + cw, y + h, CARD);
-            ctx.drawTextWithShadow(textRenderer, s.getName(), cx + 8, y + 9, TEXT);
+            float h = (s instanceof NumSetting) ? 40 : 30;
+            boolean hv = my >= viewY && my <= viewY + viewH && in(mx, my, cx, y, cw, h);
+            Draw.roundRect(ctx, cx, y, cw, h, 8, Draw.alpha(hv ? C_CARD_H : C_CARD, o));
+            Fonts.MEDIUM.draw(ctx, s.getName(), cx + 11, y + (s instanceof NumSetting ? 7 : 10), 9.5f, Draw.alpha(C_TEXT, o));
 
             if (s instanceof BoolSetting b) {
-                int sx = cx + cw - 28, sy = y + 8;
-                ctx.fill(sx, sy, sx + 18, sy + 10, b.get() ? accent : 0xFF3A3A44);
-                int knob = b.get() ? sx + 10 : sx + 2;
-                ctx.fill(knob, sy + 2, knob + 6, sy + 8, 0xFFFFFFFF);
-                settingHits.add(new Object[]{cx, y, cw, h, s});
+                Anim a = bool(b); a.set(b.get() ? 1f : 0f);
+                float t = a.get();
+                float bx = cx + cw - 38, by = y + 8;
+                Draw.roundRect(ctx, bx, by, 28, 14, 7, Draw.alpha(Theme.mix(0xFF33333F, Theme.accent(), t), o));
+                Draw.roundRect(ctx, bx + 2 + 14 * t, by + 2, 10, 10, 5, Draw.alpha(0xFFFFFFFF, o));
+                hits.add(new Hit(cx, y, cw, h, H_SETTING, s, 0));
             } else if (s instanceof ModeSetting ms) {
                 String v = ms.get();
-                ctx.drawTextWithShadow(textRenderer, "< " + v + " >", cx + cw - 10 - textRenderer.getWidth("< " + v + " >"), y + 9, accent);
-                settingHits.add(new Object[]{cx, y, cw, h, s});
+                float vw = Fonts.MEDIUM.width(v, 9.5f) + 16;
+                Draw.roundRect(ctx, cx + cw - vw - 10, y + 6, vw, 18, 6, Draw.alpha(0xFF2A2A36, o));
+                Fonts.MEDIUM.drawCentered(ctx, v, cx + cw - vw / 2 - 10, y + 10, 9.5f, Draw.alpha(Theme.accent(), o));
+                hits.add(new Hit(cx, y, cw, h, H_SETTING, s, 0));
+            } else if (s instanceof ColorSetting cs) {
+                Draw.roundRect(ctx, cx + cw - 36, y + 7, 26, 16, 5, Draw.alpha(0xFFFFFFFF, o));
+                Draw.roundRect(ctx, cx + cw - 35, y + 8, 24, 14, 4, Draw.alpha(cs.get(), o));
+                hits.add(new Hit(cx, y, cw, h, H_SETTING, s, 0));
             } else if (s instanceof NumSetting ns) {
+                Anim a = sl(ns); a.set((float) ns.getPercent());
+                float p = a.get();
                 String v = (ns.get() % 1 == 0) ? String.valueOf(ns.get().intValue()) : String.format("%.2f", ns.get());
-                ctx.drawTextWithShadow(textRenderer, v, cx + cw - 10 - textRenderer.getWidth(v), y + 4, MUTED);
-                int bx = cx + 8, bw = cw - 16, by = y + 18;
-                ctx.fill(bx, by, bx + bw, by + 3, 0xFF3A3A44);
-                int fill = (int) (bw * ns.getPercent());
-                ctx.fill(bx, by, bx + fill, by + 3, accent);
-                ctx.fill(bx + fill - 2, by - 2, bx + fill + 2, by + 5, 0xFFFFFFFF);
-                settingHits.add(new Object[]{bx, by - 4, bw, 12, s});
+                Fonts.MEDIUM.drawRight(ctx, v, cx + cw - 11, y + 7, 9.5f, Draw.alpha(Theme.accent(), o));
+                float bx = cx + 11, bw = cw - 22, by = y + 28;
+                Draw.roundRect(ctx, bx, by, bw, 4, 2, Draw.alpha(0xFF33333F, o));
+                Draw.roundRect(ctx, bx, by, Math.max(4, bw * p), 4, 2, Draw.alpha(Theme.accent(), o));
+                Draw.roundRect(ctx, bx + bw * p - 4, by - 3, 9, 10, 4, Draw.alpha(0xFFFFFFFF, o));
+                hits.add(new Hit(bx - 6, y + 20, bw + 12, 20, H_SETTING, s, 1));
             }
-            y += h + 4;
+            y += h + 6;
         }
-        int total = 16 + m.getSettings().size() * 30;
-        maxScroll = Math.max(0, total - (wh - 46));
+        maxScroll = Math.max(0, (y - top) - viewH + 4);
+        if (scroll > maxScroll) scroll = maxScroll;
     }
 
-    private static boolean inside(int mx, int my, int x, int y, int w, int h) {
+    private String trim(String s, float maxW, float size) {
+        if (Fonts.MEDIUM.width(s, size) <= maxW) return s;
+        while (s.length() > 3 && Fonts.MEDIUM.width(s + "..", size) > maxW) s = s.substring(0, s.length() - 1);
+        return s + "..";
+    }
+
+    private static boolean in(float mx, float my, float x, float y, float w, float h) {
         return mx >= x && mx <= x + w && my >= y && my <= y + h;
+    }
+
+    private static String keyName(int key) {
+        String n = org.lwjgl.glfw.GLFW.glfwGetKeyName(key, 0);
+        if (n != null) return n.toUpperCase();
+        return switch (key) {
+            case 344 -> "RSHIFT"; case 340 -> "LSHIFT"; case 345 -> "RCTRL"; case 341 -> "LCTRL";
+            case 346 -> "RALT"; case 342 -> "LALT"; case 32 -> "SPACE"; case 258 -> "TAB";
+            default -> "K" + key;
+        };
     }
 
     // ---------------- ввод ----------------
@@ -241,84 +315,83 @@ public class ClickMenuScreen extends Screen {
     public boolean mouseClicked(Click click, boolean doubled) {
         double mx = click.x(), my = click.y();
         int btn = click.button();
-
-        // вкладки
-        for (int[] t : tabHits) {
-            if (inside((int) mx, (int) my, t[0], t[1], t[2], t[3]) && btn == 0) {
-                selected = Module.Category.values()[t[4]];
-                settingsOf = null;
-                scroll = 0;
-                return true;
-            }
-        }
-        if (themeHit != null && inside((int) mx, (int) my, themeHit[0], themeHit[1], themeHit[2], themeHit[3]) && btn == 0) {
-            Theme.next();
-            return true;
-        }
-        if (scrollView == null || my < scrollView[1] || my > scrollView[1] + scrollView[3]) return true;
-
-        if (settingsOf == null) {
-            for (Object[] h : cardHits) {
-                if (inside((int) mx, (int) my, (int) h[0], (int) h[1], (int) h[2], (int) h[3])) {
-                    Module m = (Module) h[4];
-                    if (btn == 0) m.toggle();
-                    else if (btn == 1) { settingsOf = m; scroll = 0; }
+        searching = false;
+        for (int i = hits.size() - 1; i >= 0; i--) {
+            Hit h = hits.get(i);
+            if (!in((float) mx, (float) my, h.x, h.y, h.w, h.h)) continue;
+            switch (h.type) {
+                case H_TAB -> {
+                    if (btn == 0) { selected = (Module.Category) h.a; open = null; search = ""; scroll = 0; scrollAnim.snap(0); }
                     return true;
                 }
-            }
-        } else {
-            if (btn == 1) { settingsOf = null; scroll = 0; return true; }
-            for (Object[] h : settingHits) {
-                if (inside((int) mx, (int) my, (int) h[0], (int) h[1], (int) h[2], (int) h[3])) {
-                    Setting<?> s = (Setting<?>) h[4];
+                case H_THEME -> { Theme.next(); return true; }
+                case H_SEARCH -> { searching = true; open = null; return true; }
+                case H_BACK -> { open = null; scroll = 0; return true; }
+                case H_MODULE -> {
+                    Module m = (Module) h.a;
+                    if (h.b == 99) { if (btn == 0) m.toggle(); else if (btn == 1) { open = null; scroll = 0; } return true; }
+                    if (btn == 0) m.toggle();
+                    else if (btn == 1) { open = m; scroll = 0; scrollAnim.snap(0); }
+                    else if (btn == 2) binding = m;
+                    return true;
+                }
+                case H_SETTING -> {
+                    Setting<?> s = (Setting<?>) h.a;
+                    if (btn == 1) { open = null; scroll = 0; return true; }
                     if (s instanceof BoolSetting b) b.toggle();
                     else if (s instanceof ModeSetting ms) ms.next();
+                    else if (s instanceof ColorSetting cs) cs.next();
                     else if (s instanceof NumSetting ns) {
-                        dragging = ns; dragX = (int) h[0]; dragW = (int) h[2];
+                        dragging = ns; dragX = h.x + 6; dragW = h.w - 12;
                         applyDrag(mx);
                     }
                     return true;
                 }
             }
         }
+        if (btn == 1 && open != null) { open = null; scroll = 0; }
         return true;
     }
 
     private void applyDrag(double mx) {
         if (dragging == null) return;
-        double p = Math.max(0, Math.min(1, (mx - dragX) / (double) dragW));
+        double p = Math.max(0, Math.min(1, (mx - dragX) / dragW));
         dragging.set(dragging.getMin() + (dragging.getMax() - dragging.getMin()) * p);
     }
 
-    @Override
-    public boolean mouseDragged(Click click, double dx, double dy) {
-        if (dragging != null) { applyDrag(click.x()); return true; }
-        return true;
-    }
-
-    @Override
-    public boolean mouseReleased(Click click) {
-        dragging = null;
-        return true;
-    }
+    @Override public boolean mouseDragged(Click c, double dx, double dy) { if (dragging != null) applyDrag(c.x()); return true; }
+    @Override public boolean mouseReleased(Click c) { dragging = null; return true; }
 
     @Override
     public boolean mouseScrolled(double x, double y, double h, double v) {
-        scroll = (int) Math.max(0, Math.min(maxScroll, scroll - v * 14));
+        scroll = (float) Math.max(0, Math.min(maxScroll, scroll - v * 28));
         return true;
     }
 
     @Override
     public boolean keyPressed(KeyInput input) {
-        if (input.key() == 344 /* RSHIFT */ || input.key() == 256 /* ESC */) {
-            if (settingsOf != null && input.key() == 256) { settingsOf = null; return true; }
+        int k = input.key();
+        if (binding != null) {
+            binding.setBind(k == 256 ? -1 : k);
+            binding = null;
+            return true;
+        }
+        if (searching) {
+            if (k == 259 && !search.isEmpty()) search = search.substring(0, search.length() - 1);
+            else if (k == 256 || k == 257) searching = false;
+            else if (k >= 32 && k <= 126) {
+                char c = (char) k;
+                search += Character.toLowerCase(c);
+            }
+            return true;
+        }
+        if (k == 344 || k == 256) {
+            if (open != null && k == 256) { open = null; return true; }
             this.close();
             return true;
         }
         return super.keyPressed(input);
     }
 
-    @Override
-    public boolean shouldPause() { return false; }
-
+    @Override public boolean shouldPause() { return false; }
 }

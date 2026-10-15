@@ -4,7 +4,7 @@ import com.collapse.Module;
 
 public class Step extends Module {
     public Step() {
-        super("Step", "Запрыгивание на блоки без прыжка", Category.MOVEMENT);
+        super("Step", "Автоподъём на блоки", Category.MOVEMENT);
     }
 
     @Override

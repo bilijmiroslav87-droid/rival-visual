@@ -1,6 +1,7 @@
 package com.collapse.modules;
 
 import com.collapse.Module;
+import com.collapse.mixin.MinecraftClientMixin;
 
 public class FastPlace extends Module {
     public FastPlace() {
@@ -9,6 +10,7 @@ public class FastPlace extends Module {
 
     @Override
     public void onTick() {
-        // Задержка использования предмета сбрасывается в миксине; тут оставляем заглушку-флаг
+        if (mc == null) return;
+        ((MinecraftClientMixin) mc).collapse$setItemUseCooldown(0);
     }
 }

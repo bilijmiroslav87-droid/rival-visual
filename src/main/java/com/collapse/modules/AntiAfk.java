@@ -16,5 +16,6 @@ public class AntiAfk extends Module {
         ticks++;
         if (ticks % 400 == 0) mc.player.swingHand(Hand.MAIN_HAND);
         if (ticks % 800 == 0) mc.player.setYaw(mc.player.getYaw() + 20f);
+        if (ticks % 1200 == 0) mc.player.jump();
     }
 }

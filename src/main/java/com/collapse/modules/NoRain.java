@@ -4,7 +4,7 @@ import com.collapse.Module;
 
 public class NoRain extends Module {
     public NoRain() {
-        super("NoRain", "Убирает дождь и грозу", Category.VISUALS);
+        super("NoWeather", "Убирает дождь и грозу", Category.VISUALS);
     }
 
     @Override
