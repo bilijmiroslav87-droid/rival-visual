@@ -8,7 +8,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.LivingEntityFeatureRendererRegistrationCallback;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
@@ -75,7 +75,7 @@ public class CollapseClient implements ClientModInitializer {
         ClientLifecycleEvents.CLIENT_STOPPING.register(c -> Config.save());
         CollapseHud.register();
         try {
-            LivingEntityRenderLayerRegistrationCallback.EVENT.register((entityType, entityRenderer, helper, context) -> {
+            LivingEntityFeatureRendererRegistrationCallback.EVENT.register((entityType, entityRenderer, helper, context) -> {
                 if (entityRenderer instanceof net.minecraft.client.render.entity.PlayerEntityRenderer per) {
                     helper.register(new com.collapse.cosmetics.CosmeticLayer(per));
                 }
