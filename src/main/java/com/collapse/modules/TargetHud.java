@@ -20,9 +20,32 @@ public class TargetHud extends Module {
         super("TargetHUD", "Карточка цели KillAura", Category.VISUALS);
     }
 
+    private long lastSeen = 0;
+
+    /** Цель: тот, на кого смотришь (до 12 блоков), либо последний, кого ты бил. Не зависит от других модулей. */
+    private LivingEntity pick() {
+        if (mc.player == null || mc.world == null) return null;
+        LivingEntity best = null;
+        double bestDot = 0.985; // ~10 градусов
+        net.minecraft.util.math.Vec3d eye = mc.player.getEyePos();
+        net.minecraft.util.math.Vec3d look = mc.player.getRotationVec(1f);
+        for (net.minecraft.entity.Entity e : mc.world.getEntities()) {
+            if (!(e instanceof net.minecraft.entity.player.PlayerEntity p) || p == mc.player || !p.isAlive() || p.isSpectator()) continue;
+            net.minecraft.util.math.Vec3d to = new net.minecraft.util.math.Vec3d(p.getX(), p.getY() + p.getHeight() * 0.6, p.getZ()).subtract(eye);
+            double d = to.length();
+            if (d > 12 || d < 0.1) continue;
+            double dot = to.normalize().dotProduct(look);
+            if (dot > bestDot) { bestDot = dot; best = p; }
+        }
+        if (best != null) { lastSeen = System.currentTimeMillis(); return best; }
+        // держим карточку ещё 1.5с после потери цели
+        if (last != null && last.isAlive() && System.currentTimeMillis() - lastSeen < 1500) return last;
+        return null;
+    }
+
     @Override
     public void onHud(DrawContext ctx, int w, int h) {
-        LivingEntity t = KillAura.getTarget();
+        LivingEntity t = pick();
         if (t != null && t.isAlive()) {
             if (last != t) { hp.snap(1f); trail.snap(1f); }
             last = t;
