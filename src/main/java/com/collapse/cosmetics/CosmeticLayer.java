@@ -28,6 +28,8 @@ public class CosmeticLayer extends FeatureRenderer<PlayerEntityRenderState, Play
     }
 
     private static boolean loggedCall = false, loggedDraw = false;
+    /** Диагностика: сколько раз слой вызывался / реально рисовал на тебе. Показывается в меню. */
+    public static int calls = 0, draws = 0, errors = 0;
 
     private static boolean isLocal(PlayerEntityRenderState s) {
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -46,6 +48,7 @@ public class CosmeticLayer extends FeatureRenderer<PlayerEntityRenderState, Play
     @Override
     public void render(MatrixStack m, OrderedRenderCommandQueue q, int light, PlayerEntityRenderState s, float yaw, float pitch) {
         try {
+            calls++;
             if (!loggedCall) {
                 loggedCall = true;
                 com.collapse.CollapseClient.LOGGER.info("[Cosmetics] layer render() called (id={}, name={})", s.id, s.playerName);
@@ -58,7 +61,9 @@ public class CosmeticLayer extends FeatureRenderer<PlayerEntityRenderState, Play
                 com.collapse.CollapseClient.LOGGER.info("[Cosmetics] drawing on local player");
             }
             c.draw(this, m, q, light, s);
+            draws++;
         } catch (Throwable t) {
+            errors++;
             com.collapse.CollapseClient.LOGGER.error("Cosmetics render error", t);
         }
     }

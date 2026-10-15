@@ -23,16 +23,16 @@ public class InfoHud extends Module {
     private static final long START = System.currentTimeMillis();
 
     public final ModeSetting pos = add(new ModeSetting("Позиция", "Слева снизу", "Слева снизу", "Слева сверху", "Справа снизу"));
-    public final BoolSetting coords = add(new BoolSetting("Координаты", true));
-    public final BoolSetting fps = add(new BoolSetting("FPS", true));
-    public final BoolSetting ping = add(new BoolSetting("Пинг", true));
-    public final BoolSetting speed = add(new BoolSetting("Скорость", true));
-    public final BoolSetting time = add(new BoolSetting("Время", true));
+    public final BoolSetting coords = add(new BoolSetting("Координаты", false));
+    public final BoolSetting fps = add(new BoolSetting("FPS", false));
+    public final BoolSetting ping = add(new BoolSetting("Пинг", false));
+    public final BoolSetting speed = add(new BoolSetting("Скорость", false));
+    public final BoolSetting time = add(new BoolSetting("Время", false));
     public final BoolSetting session = add(new BoolSetting("Сессия", false));
     public final BoolSetting potions = add(new BoolSetting("Эффекты", true));
 
     public InfoHud() {
-        super("HUD", "Всё в одном: координаты, FPS, пинг, скорость, время, эффекты", Category.VISUALS);
+        super("Potions", "Активные эффекты на экране", Category.VISUALS);
     }
 
     private record Row(String label, String value, int valueColor) {}

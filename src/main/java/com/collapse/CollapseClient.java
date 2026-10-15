@@ -21,6 +21,7 @@ import java.util.Map;
 public class CollapseClient implements ClientModInitializer {
     public static final String MOD_ID = "collapse-client";
     public static final String NAME = "Collapse Client";
+    public static final String VERSION = "0.10.0";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static KeyBinding menuKey;
@@ -34,7 +35,7 @@ public class CollapseClient implements ClientModInitializer {
         try { Config.load(); } catch (Throwable t) { LOGGER.error("Config load failed", t); }
         // Водянка и уведомления включены по умолчанию
         if (!java.nio.file.Files.exists(net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir().resolve("collapse-client.properties"))) {
-            for (String n : new String[]{"Watermark", "Notifications", "HUD", "TargetHUD", "Cosmetics"}) {
+            for (String n : new String[]{"Watermark", "Notifications", "TargetHUD", "Cosmetics", "Potions"}) {
                 Module m = ModuleManager.byName(n);
                 if (m != null) m.setEnabled(true);
             }
@@ -81,7 +82,7 @@ public class CollapseClient implements ClientModInitializer {
                 }
             });
         } catch (Throwable t) { LOGGER.error("Cosmetics layer registration failed", t); }
-        LOGGER.info("=== {} v0.9.2 loaded ===", NAME);
+        LOGGER.info("=== {} v0.10.0 loaded ===", NAME);
         LOGGER.info("modules: {}", ModuleManager.MODULES.size());
         LOGGER.info("fonts ok: medium={}, bold={}, head={}", Fonts.MEDIUM != null, Fonts.BOLD != null, Fonts.HEAD != null);
         ClientTickEvents.END_CLIENT_TICK.register(new ClientTickEvents.EndTick() {

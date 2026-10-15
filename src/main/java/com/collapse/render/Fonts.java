@@ -61,6 +61,9 @@ public final class Fonts {
         }
     }
 
+    public boolean isOk() { return ok; }
+    public int glyphCount() { return glyphs.size(); }
+
     public static void init() {
         MEDIUM = new Fonts("text_m");
         BOLD = new Fonts("text_b");
