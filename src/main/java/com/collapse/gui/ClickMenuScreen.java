@@ -318,7 +318,17 @@ public class ClickMenuScreen extends Screen {
         Fonts.HEAD.draw(ctx, title, cx, cy + 3, 12f, Draw.alpha(C_TEXT, o));
         String sub = !search.isEmpty() ? "найдено: " + list().size()
                 : tab >= 0 || tab == TAB_FAV ? list().size() + " модулей" : "";
-        if (!sub.isEmpty()) Fonts.MEDIUM.draw(ctx, sub, cx + Fonts.HEAD.width(title, 12f) + 8, cy + 6, 8f, Draw.alpha(C_MUTED, o));
+        float subX = cx + Fonts.HEAD.width(title, 12f) + 8;
+        if (!sub.isEmpty()) Fonts.MEDIUM.draw(ctx, sub, subX, cy + 6, 8f, Draw.alpha(C_MUTED, o));
+        if (search.isEmpty() && (tab >= 0 || tab == TAB_FAV)) {
+            List<Module> ls = list();
+            int onN = 0;
+            for (Module mm : ls) if (mm.isEnabled()) onN++;
+            float pw = 54, px = subX + Fonts.MEDIUM.width(sub, 8f) + 10, py = cy + 9;
+            Draw.roundRect(ctx, px, py, pw, 4, 2, Draw.alpha(0xFF22222E, o));
+            if (!ls.isEmpty() && onN > 0) Draw.roundRect(ctx, px, py, pw * onN / (float) ls.size(), 4, 2, Draw.alpha(acc, o));
+            Fonts.BOLD.draw(ctx, onN + " вкл.", px + pw + 6, cy + 6, 7.5f, Draw.alpha(onN > 0 ? acc : C_MUTED, o));
+        }
 
         // поиск
         float sw = Math.min(150, cw * 0.38f), sx = cx + cw - sw, sh = 24;
@@ -340,8 +350,8 @@ public class ClickMenuScreen extends Screen {
     // ---------- сетка модулей ----------
     private void drawGrid(DrawContext ctx, float mx, float my, float o, int acc, int acc2) {
         List<Module> mods = list();
-        int cols = gridW >= 330 ? 3 : (gridW >= 210 ? 2 : 1);
-        float gap = 8, cardH = 52;
+        int cols = gridW >= 420 ? 3 : (gridW >= 210 ? 2 : 1);
+        float gap = 9, cardH = 66;
         float cwid = (gridW - gap * (cols - 1)) / cols;
         int rows = (int) Math.ceil(mods.size() / (double) cols);
         float contentH = rows * (cardH + gap);
@@ -352,7 +362,10 @@ public class ClickMenuScreen extends Screen {
 
         if (mods.isEmpty()) {
             String msg = tab == TAB_FAV && search.isEmpty() ? "Пока пусто. Нажмите ☆ на карточке модуля." : "Ничего не найдено";
-            Fonts.MEDIUM.drawCentered(ctx, msg, gridX + gridW / 2, gridY + gridH / 2 - 6, 10f, Draw.alpha(C_MUTED, o));
+            float ex = gridX + gridW / 2, ey = gridY + gridH / 2;
+            Draw.roundRect(ctx, ex - 22, ey - 40, 44, 44, 14, Draw.alpha(0xFF1A1A24, o));
+            Draw.icon(ctx, tab == TAB_FAV ? "fav" : "visuals", ex, ey - 18, 22, Draw.alpha(acc, o));
+            Fonts.BOLD.drawCentered(ctx, msg, ex, ey + 12, 9.5f, Draw.alpha(C_SUB, o));
             return;
         }
         ctx.enableScissor(Math.round((gridX - 4) * sc), Math.round(gridY * sc), Math.round((gridX + gridW + 4) * sc), Math.round((gridY + gridH) * sc));
@@ -388,17 +401,24 @@ public class ClickMenuScreen extends Screen {
 
         // акцентная полоса снизу при включении
         if (on > 0.02f) {
-            Draw.roundRect(ctx, x + 12, y + h - 3, (w - 24) * on, 2, 1, Draw.alpha(acc, o * 0.9f));
+            Draw.roundRect(ctx, x + 12, y + h - 3.5f, (w - 24) * on, 2, 1, Draw.alpha(acc, o * 0.9f));
         }
 
-        // название
+        // иконка категории в плитке
+        float ti = 28;
+        Draw.roundRect(ctx, x + 10, y + 10, ti, ti, 9, Draw.alpha(Theme.mix(0xFF1D1D29, Theme.withAlpha(acc, 60), on), o));
+        Draw.icon(ctx, ICONS[Math.min(ICONS.length - 1, m.getCategory().ordinal())], x + 10 + ti / 2f, y + 10 + ti / 2f, 15,
+                Draw.alpha(Theme.mix(C_SUB, acc, on), o));
+
+        // название и описание
         float pad = 10;
-        float nameMax = w - pad * 2 - 16;
-        Fonts.BOLD.draw(ctx, Fonts.BOLD.fit(m.getName(), nameMax, 10f), x + pad, y + 9, 10f, Draw.alpha(Theme.mix(C_TEXT, 0xFFFFFFFF, on), o));
-        Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(m.getDescription(), w - pad * 2, 7.5f), x + pad, y + 23, 7.5f, Draw.alpha(C_MUTED, o));
+        float tx0 = x + 10 + ti + 8;
+        float nameMax = w - (tx0 - x) - 38;
+        Fonts.BOLD.draw(ctx, Fonts.BOLD.fit(m.getName(), nameMax, 10f), tx0, y + 12, 10f, Draw.alpha(Theme.mix(C_TEXT, 0xFFFFFFFF, on), o));
+        Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(m.getDescription(), w - (tx0 - x) - 10, 7.5f), tx0, y + 26, 7.5f, Draw.alpha(C_MUTED, o));
 
         // нижняя строка: бинд-чип + кол-во настроек
-        float by = y + h - 17;
+        float by = y + h - 19;
         String bind = m.getBind() > 0 ? keyName(m.getBind()) : "—";
         boolean binding = this.binding == m;
         String bt = binding ? "..." : bind;
@@ -416,7 +436,7 @@ public class ClickMenuScreen extends Screen {
         Draw.circle(ctx, tx + 1.5f + (tw - th) * on, ty + 1.5f, th - 3, Draw.alpha(0xFFFFFFFF, o));
 
         // звезда избранного
-        float fx = x + w - 20, fy = y + h - 18;
+        float fx = x + w - 20, fy = y + h - 20;
         boolean fav = m.isFavorite();
         boolean fh = visible && in(mx, my, fx - 2, fy - 2, 16, 16);
         int fc = fav ? 0xFFFFC857 : (fh ? C_SUB : 0xFF3A3A4A);

@@ -27,8 +27,8 @@ public class FpsInfo extends Module {
         for (int i = 0; i < 3; i++) total += Math.max(Fonts.BOLD.width(vals[i], size), Fonts.MEDIUM.width(labels[i], lsize)) + (i < 2 ? gap : 0);
         float x = 6, y = h - 40, hh = 26;
         Draw.shadow(ctx, x, y, total, hh, 8, 8);
-        Draw.roundRect(ctx, x, y, total, hh, 8, 0xDD0E0E14);
-        Draw.ring(ctx, x, y, total, hh, 8, 0x1FFFFFFF);
+        Draw.roundRect(ctx, x, y, total, hh, 8, 0xC8101018);
+        Draw.ring(ctx, x, y, total, hh, 8, 0x22FFFFFF);
         float cx = x + 7;
         for (int i = 0; i < 3; i++) {
             float cw = Math.max(Fonts.BOLD.width(vals[i], size), Fonts.MEDIUM.width(labels[i], lsize));

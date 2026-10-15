@@ -81,7 +81,7 @@ public class CollapseClient implements ClientModInitializer {
                 }
             });
         } catch (Throwable t) { LOGGER.error("Cosmetics layer registration failed", t); }
-        LOGGER.info("=== {} v0.7.0 loaded ===", NAME);
+        LOGGER.info("=== {} v0.8.0 loaded ===", NAME);
         LOGGER.info("modules: {}", ModuleManager.MODULES.size());
         LOGGER.info("fonts ok: medium={}, bold={}, head={}", Fonts.MEDIUM != null, Fonts.BOLD != null, Fonts.HEAD != null);
         ClientTickEvents.END_CLIENT_TICK.register(new ClientTickEvents.EndTick() {

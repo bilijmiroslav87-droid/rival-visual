@@ -27,14 +27,36 @@ public class CosmeticLayer extends FeatureRenderer<PlayerEntityRenderState, Play
         super(ctx);
     }
 
+    private static boolean loggedCall = false, loggedDraw = false;
+
+    private static boolean isLocal(PlayerEntityRenderState s) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.player == null) return false;
+        try {
+            if (s.id == mc.player.getId()) return true;
+        } catch (Throwable ignored) {}
+        try {
+            // запасной вариант: по имени
+            if (s.playerName != null && mc.player.getName() != null
+                    && s.playerName.getString().equals(mc.player.getName().getString())) return true;
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
     @Override
     public void render(MatrixStack m, OrderedRenderCommandQueue q, int light, PlayerEntityRenderState s, float yaw, float pitch) {
         try {
+            if (!loggedCall) {
+                loggedCall = true;
+                com.collapse.CollapseClient.LOGGER.info("[Cosmetics] layer render() called (id={}, name={})", s.id, s.playerName);
+            }
             Cosmetics c = Cosmetics.INSTANCE;
             if (c == null || !c.isEnabled() || s.invisible) return;
-            MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc.player == null || s.id != mc.player.getId()) return;
-            // от первого лица тело не рисуется, но слой всё равно вызывается для модели в F5 / инвентаре
+            if (!isLocal(s)) return;
+            if (!loggedDraw) {
+                loggedDraw = true;
+                com.collapse.CollapseClient.LOGGER.info("[Cosmetics] drawing on local player");
+            }
             c.draw(this, m, q, light, s);
         } catch (Throwable t) {
             com.collapse.CollapseClient.LOGGER.error("Cosmetics render error", t);

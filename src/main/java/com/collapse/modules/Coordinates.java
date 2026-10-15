@@ -24,8 +24,8 @@ public class Coordinates extends Module {
         for (int i = 0; i < 3; i++) total += Fonts.BOLD.width(labels[i], size) + 4 + Fonts.BOLD.width(vals[i], size) + (i < 2 ? gap : 0);
         float x = 6, y = h - 18, hh = 14;
         y = h - 12 - hh;
-        Draw.roundRect(ctx, x, y, total, hh, 7, 0xDD0E0E14);
-        Draw.ring(ctx, x, y, total, hh, 7, 0x1FFFFFFF);
+        Draw.roundRect(ctx, x, y, total, hh, 7, 0xC8101018);
+        Draw.ring(ctx, x, y, total, hh, 7, 0x22FFFFFF);
         float cx = x + 7;
         for (int i = 0; i < 3; i++) {
             Fonts.BOLD.draw(ctx, labels[i], cx, y + 3.5f, size, Theme.accent());

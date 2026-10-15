@@ -54,23 +54,44 @@ public final class CollapseHud {
         }
     }
 
+    private static final int GLASS = 0xC8101018;
+
     private static void watermark(DrawContext ctx, MinecraftClient mc) {
         int acc = Theme.accent(), acc2 = Theme.accent2();
-        String a = "Collapse";
-        String b = mc.getCurrentFps() + " fps";
-        float fa = Fonts.HEAD.width(a, 9f);
-        float fb = Fonts.MEDIUM.width(b, 8f);
-        float bw = 8 + fa + 10 + fb + 8;
-        float x = 6, y = 6, hgt = 18;
-        Draw.shadow(ctx, x, y, bw, hgt, 8, 8);
-        Draw.roundRect(ctx, x, y, bw, hgt, 8, 0xDD0E0E14);
-        Draw.ring(ctx, x, y, bw, hgt, 8, 0x1FFFFFFF);
-        Draw.roundRect(ctx, x + 5, y + 5, 3, 8, 1.5f, acc);
-        Fonts.HEAD.draw(ctx, a, x + 12, y + 5, 9f, acc);
-        ctx.fill((int) (x + 12 + fa + 5), (int) y + 5, (int) (x + 12 + fa + 6), (int) y + 13, 0x33FFFFFF);
-        Fonts.MEDIUM.draw(ctx, b, x + 12 + fa + 10, y + 5, 8f, 0xFFB8B8C8);
-        // тонкий градиент снизу
-        Draw.gradientH(ctx, x + 8, y + hgt - 1, bw - 16, 1, Draw.alpha(acc, 0.9f), Draw.alpha(acc2, 0.9f));
+        String name = mc.player != null ? mc.player.getName().getString() : "";
+        int ping = 0;
+        if (mc.getNetworkHandler() != null && mc.player != null) {
+            var e = mc.getNetworkHandler().getPlayerListEntry(mc.player.getUuid());
+            if (e != null) ping = e.getLatency();
+        }
+        String brand = "Collapse";
+        String[] parts = {name, mc.getCurrentFps() + " fps", ping + " ms"};
+        float bs = 9.5f, ps = 8f;
+        float logoW = 22;
+        float brandW = Fonts.HEAD.width(brand, bs);
+        float x = 6, y = 6, hgt = 22;
+        float total = 6 + logoW + 6 + brandW + 8;
+        for (String t : parts) if (!t.isEmpty()) total += 1 + 8 + Fonts.MEDIUM.width(t, ps) + 8;
+        total += 2;
+
+        Draw.shadow(ctx, x, y, total, hgt, 10, 10);
+        Draw.roundRect(ctx, x, y, total, hgt, 10, GLASS);
+        Draw.ring(ctx, x, y, total, hgt, 10, 0x22FFFFFF);
+        // логотип-плитка
+        Draw.roundRect(ctx, x + 4, y + 4, logoW - 4, hgt - 8, 6, acc);
+        Draw.roundRect(ctx, x + 4, y + hgt / 2f, logoW - 4, hgt / 2f - 4, 6, Draw.alpha(acc2, 0.6f));
+        Fonts.HEAD.drawCentered(ctx, "C", x + 4 + (logoW - 4) / 2f, y + 6, 9f, 0xFF0B0B10);
+        float cx = x + 6 + logoW + 2;
+        Fonts.HEAD.draw(ctx, brand, cx, y + 7, bs, 0xFFFFFFFF);
+        cx += brandW + 8;
+        for (String t : parts) {
+            if (t.isEmpty()) continue;
+            ctx.fill((int) cx, (int) y + 6, (int) cx + 1, (int) (y + hgt - 6), 0x28FFFFFF);
+            cx += 9;
+            Fonts.MEDIUM.draw(ctx, t, cx, y + 7.5f, ps, 0xFFC9C9D8);
+            cx += Fonts.MEDIUM.width(t, ps) + 8;
+        }
+        Draw.gradientH(ctx, x + 10, y + hgt - 1.5f, total - 20, 1.5f, Draw.alpha(acc, 0.95f), Draw.alpha(acc2, 0.95f));
     }
 
     private static void arrayList(DrawContext ctx, int w, int h) {
@@ -95,7 +116,7 @@ public final class CollapseHud {
             float x = right ? w - bw - 5 + slide : 5 - slide;
             int col = Theme.mix(Theme.accent(), Theme.accent2(), (i % 10) / 10f);
             if (ClientSettings.arrayListBg) {
-                Draw.roundRect(ctx, x, y, bw, rowH - 1, 5, Draw.alpha(0xDD0E0E14, t));
+                Draw.roundRect(ctx, x, y, bw, rowH - 1, 6, Draw.alpha(GLASS, t));
             }
             float barX = right ? x + bw - 3 : x + 1;
             Draw.roundRect(ctx, barX, y + 2.5f, 2, rowH - 6, 1, Draw.alpha(col, t));
