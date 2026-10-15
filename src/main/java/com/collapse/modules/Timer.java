@@ -12,7 +12,7 @@ public class Timer extends Module {
 
     @Override
     public void onTick() {
-        if (mc.player == null || !mc.player.input.hasForwardMovement()) return;
+        if (mc.player == null || !com.collapse.util.Keys.moving()) return;
         var v = mc.player.getVelocity();
         mc.player.setVelocity(v.x * boost.get(), v.y, v.z * boost.get());
     }

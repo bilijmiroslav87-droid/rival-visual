@@ -16,8 +16,8 @@ public class Speed extends Module {
     @Override
     public void onTick() {
         if (mc.player == null) return;
-        var in = mc.player.input.playerInput;
-        if (!(in.forward() || in.backward() || in.left() || in.right())) return;
+        
+        if (!(com.collapse.util.Keys.forward() || com.collapse.util.Keys.back() || com.collapse.util.Keys.left() || com.collapse.util.Keys.right())) return;
         Vec3d v = mc.player.getVelocity();
 
         if (mode.is("BHop") && mc.player.isOnGround()) {
@@ -27,8 +27,8 @@ public class Speed extends Module {
         if (mode.is("Ground") && !mc.player.isOnGround()) return;
 
         double base = 0.2873 * mult.get();
-        double fwd = (in.forward() ? 1 : 0) - (in.backward() ? 1 : 0);
-        double side = (in.left() ? 1 : 0) - (in.right() ? 1 : 0);
+        double fwd = (com.collapse.util.Keys.forward() ? 1 : 0) - (com.collapse.util.Keys.back() ? 1 : 0);
+        double side = (com.collapse.util.Keys.left() ? 1 : 0) - (com.collapse.util.Keys.right() ? 1 : 0);
         double len = Math.sqrt(fwd * fwd + side * side);
         if (len == 0) return;
         fwd /= len; side /= len;

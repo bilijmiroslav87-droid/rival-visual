@@ -14,50 +14,54 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Свой шрифт Inter. Атлас PNG заранее сгенерирован при сборке (без AWT, чтобы работало на Android/FCL).
- * Рисуется обычным drawTexture с цветом, никаких шейдеров.
+ * Шрифт Inter. Несколько заранее отрисованных размеров (10/12/14/18), выбирается ближайший,
+ * текстуры с blur=true (LINEAR), поэтому текст гладкий, а не пиксельный.
  */
 public final class Fonts {
     public static Fonts MEDIUM;
     public static Fonts BOLD;
 
-    private static final class Glyph {
-        int x, y, w, h, adv;
+    private static final int[] SIZES = {10, 12, 14, 18};
+
+    private static final class Glyph { int x, y, w, h, adv; }
+
+    private static final class Atlas {
+        Identifier tex;
+        final Map<Character, Glyph> glyphs = new HashMap<>();
+        int base, w = 512, h = 512;
+        boolean ok;
     }
 
-    private final Identifier texture;
-    private final Map<Character, Glyph> glyphs = new HashMap<>();
-    private int lineHeight = 14;
-    private int atlasW = 512, atlasH = 512;
-    private final float baseSize = 28f;
-    private boolean ok = false;
+    private final Atlas[] atlases = new Atlas[SIZES.length];
 
-    private Fonts(String name) {
-        this.texture = Identifier.of("collapse-client", "font/" + name + ".png");
-        try (InputStream in = Fonts.class.getResourceAsStream("/assets/collapse-client/font/" + name + ".txt")) {
-            if (in == null) throw new IllegalStateException("font meta missing: " + name);
-            BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-            String line;
-            while ((line = r.readLine()) != null) {
-                String[] p = line.trim().split(" ");
-                if (p.length == 0) continue;
-                if (p[0].equals("H")) {
-                    lineHeight = Integer.parseInt(p[1]);
-                    atlasW = Integer.parseInt(p[3]);
-                    atlasH = Integer.parseInt(p[4]);
-                } else if (p.length >= 6) {
-                    Glyph g = new Glyph();
-                    g.x = Integer.parseInt(p[1]);
-                    g.y = Integer.parseInt(p[2]);
-                    g.w = Integer.parseInt(p[3]);
-                    g.h = Integer.parseInt(p[4]);
-                    g.adv = Integer.parseInt(p[5]);
-                    glyphs.put((char) Integer.parseInt(p[0]), g);
+    private Fonts(String prefix) {
+        for (int i = 0; i < SIZES.length; i++) {
+            Atlas a = new Atlas();
+            a.base = SIZES[i] * 2;
+            String name = prefix + "_" + SIZES[i];
+            a.tex = Identifier.of("collapse-client", "font/" + name + ".png");
+            try (InputStream in = Fonts.class.getResourceAsStream("/assets/collapse-client/font/" + name + ".txt")) {
+                if (in == null) throw new IllegalStateException("missing " + name);
+                BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                String line;
+                while ((line = r.readLine()) != null) {
+                    String[] p = line.trim().split(" ");
+                    if (p[0].equals("H")) {
+                        a.w = Integer.parseInt(p[3]);
+                        a.h = Integer.parseInt(p[4]);
+                    } else if (p.length >= 6) {
+                        Glyph g = new Glyph();
+                        g.x = Integer.parseInt(p[1]); g.y = Integer.parseInt(p[2]);
+                        g.w = Integer.parseInt(p[3]); g.h = Integer.parseInt(p[4]);
+                        g.adv = Integer.parseInt(p[5]);
+                        a.glyphs.put((char) Integer.parseInt(p[0]), g);
+                    }
                 }
+                a.ok = true;
+            } catch (Throwable t) {
+                CollapseClient.LOGGER.error("Font atlas failed: {}", name, t);
             }
-            ok = true;
-        } catch (Throwable t) {
-            CollapseClient.LOGGER.error("Font load failed: {}", name, t);
+            atlases[i] = a;
         }
     }
 
@@ -66,27 +70,36 @@ public final class Fonts {
         BOLD = new Fonts("inter_b");
     }
 
-    /** Ширина строки при заданной высоте шрифта (в пикселях GUI). */
+    private Atlas pick(float size) {
+        Atlas best = atlases[0];
+        float bd = Float.MAX_VALUE;
+        for (int i = 0; i < SIZES.length; i++) {
+            float d = Math.abs(SIZES[i] - size);
+            if (d < bd && atlases[i].ok) { bd = d; best = atlases[i]; }
+        }
+        return best;
+    }
+
     public float width(String s, float size) {
-        if (!ok) return MinecraftClient.getInstance().textRenderer.getWidth(s);
-        float scale = size / baseSize;
+        Atlas a = pick(size);
+        if (!a.ok) return MinecraftClient.getInstance().textRenderer.getWidth(s);
+        float scale = size / a.base;
         float w = 0;
         for (int i = 0; i < s.length(); i++) {
-            Glyph g = glyphs.get(s.charAt(i));
-            if (g == null) g = glyphs.get('?');
+            Glyph g = a.glyphs.get(s.charAt(i));
+            if (g == null) g = a.glyphs.get('?');
             if (g != null) w += g.adv * scale;
         }
         return w;
     }
 
-    public float height(float size) { return size; }
-
     public void draw(DrawContext ctx, String s, float x, float y, float size, int color) {
-        if (!ok) {
+        Atlas a = pick(size);
+        if (!a.ok) {
             ctx.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, s, (int) x, (int) y, color);
             return;
         }
-        float scale = size / baseSize;
+        float scale = size / a.base;
         var m = ctx.getMatrices();
         m.pushMatrix();
         m.translate(x, y);
@@ -94,12 +107,12 @@ public final class Fonts {
         float cx = 0;
         int pad = 2;
         for (int i = 0; i < s.length(); i++) {
-            Glyph g = glyphs.get(s.charAt(i));
-            if (g == null) g = glyphs.get('?');
+            Glyph g = a.glyphs.get(s.charAt(i));
+            if (g == null) g = a.glyphs.get('?');
             if (g == null) continue;
             if (s.charAt(i) != ' ') {
-                ctx.drawTexture(RenderPipelines.GUI_TEXTURED, texture,
-                        Math.round(cx) - pad, 0, g.x, g.y, g.w, g.h, g.w, g.h, atlasW, atlasH, color);
+                ctx.drawTexture(RenderPipelines.GUI_TEXTURED, a.tex,
+                        Math.round(cx) - pad, 0, g.x, g.y, g.w, g.h, g.w, g.h, a.w, a.h, color);
             }
             cx += g.adv;
         }

@@ -21,7 +21,7 @@ public class Crosshair extends Module {
     public void onHud(DrawContext ctx, int w, int h) {
         int cx = w / 2, cy = h / 2, col = Theme.accent();
         int g = gap.i();
-        if (dyn.get() && mc.player != null && (mc.player.input.hasForwardMovement() || !mc.player.isOnGround())) g += 3;
+        if (dyn.get() && mc.player != null && (com.collapse.util.Keys.moving() || !mc.player.isOnGround())) g += 3;
         int s = size.i();
         if (style.is("Dot")) {
             ctx.fill(cx - 1, cy - 1, cx + 2, cy + 2, col);

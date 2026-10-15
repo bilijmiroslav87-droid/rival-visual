@@ -10,7 +10,7 @@ public class Step extends Module {
     @Override
     public void onTick() {
         if (mc.player == null) return;
-        if (mc.player.horizontalCollision && mc.player.isOnGround() && mc.player.input.hasForwardMovement()) {
+        if (mc.player.horizontalCollision && mc.player.isOnGround() && com.collapse.util.Keys.moving()) {
             mc.player.jump();
         }
     }

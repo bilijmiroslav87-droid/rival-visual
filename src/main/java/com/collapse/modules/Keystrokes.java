@@ -24,12 +24,12 @@ public class Keystrokes extends Module {
     @Override
     public void onHud(DrawContext ctx, int w, int h) {
         if (mc.player == null) return;
-        var in = mc.player.input.playerInput;
+        
         float x = 8, y = h / 2f - 20;
-        key(ctx, 0, "W", x + 21, y, 18, in.forward());
-        key(ctx, 1, "A", x, y + 21, 18, in.left());
-        key(ctx, 2, "S", x + 21, y + 21, 18, in.backward());
-        key(ctx, 3, "D", x + 42, y + 21, 18, in.right());
-        key(ctx, 4, "SPACE", x, y + 42, 60, in.jump());
+        key(ctx, 0, "W", x + 21, y, 18, com.collapse.util.Keys.forward());
+        key(ctx, 1, "A", x, y + 21, 18, com.collapse.util.Keys.left());
+        key(ctx, 2, "S", x + 21, y + 21, 18, com.collapse.util.Keys.back());
+        key(ctx, 3, "D", x + 42, y + 21, 18, com.collapse.util.Keys.right());
+        key(ctx, 4, "SPACE", x, y + 42, 60, com.collapse.util.Keys.jump());
     }
 }

@@ -14,7 +14,7 @@ public class ElytraBoost extends Module {
     @Override
     public void onTick() {
         if (mc.player == null || !mc.player.isGliding()) return;
-        if (!mc.player.input.playerInput.forward()) return;
+        if (!com.collapse.util.Keys.forward()) return;
         Vec3d look = mc.player.getRotationVector();
         Vec3d v = mc.player.getVelocity();
         mc.player.setVelocity(v.add(look.multiply(boost.get())));

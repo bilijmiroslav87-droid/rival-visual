@@ -1,6 +1,7 @@
 package com.collapse.modules;
 
 import com.collapse.Module;
+import com.collapse.util.Keys;
 
 public class AutoSprint extends Module {
     public AutoSprint() {
@@ -10,7 +11,8 @@ public class AutoSprint extends Module {
     @Override
     public void onTick() {
         if (mc.player == null) return;
-        if (!mc.player.isSprinting() && !mc.player.isSneaking() && mc.player.input.hasForwardMovement()) {
+        if (Keys.forward() && !mc.player.isSneaking() && !mc.player.horizontalCollision
+                && mc.player.getHungerManager().getFoodLevel() > 6) {
             mc.player.setSprinting(true);
         }
     }

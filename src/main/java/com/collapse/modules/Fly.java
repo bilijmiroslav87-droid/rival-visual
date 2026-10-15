@@ -23,11 +23,11 @@ public class Fly extends Module {
         else if (mc.options.sneakKey.isPressed()) y = -vspeed.get();
 
         double fwd = 0, side = 0;
-        var in = mc.player.input.playerInput;
-        if (in.forward()) fwd += 1;
-        if (in.backward()) fwd -= 1;
-        if (in.left()) side += 1;
-        if (in.right()) side -= 1;
+        
+        if (com.collapse.util.Keys.forward()) fwd += 1;
+        if (com.collapse.util.Keys.back()) fwd -= 1;
+        if (com.collapse.util.Keys.left()) side += 1;
+        if (com.collapse.util.Keys.right()) side -= 1;
         double yaw = Math.toRadians(mc.player.getYaw());
         double mx = 0, mz = 0;
         if (fwd != 0 || side != 0) {

@@ -73,6 +73,17 @@ public class CollapseClient implements ClientModInitializer {
 
         ClientLifecycleEvents.CLIENT_STOPPING.register(c -> Config.save());
         CollapseHud.register();
-        LOGGER.info("{} loaded, modules: {}", NAME, ModuleManager.MODULES.size());
+        LOGGER.info("=== {} v0.5.0 loaded ===", NAME);
+        LOGGER.info("modules: {}", ModuleManager.MODULES.size());
+        LOGGER.info("fonts ok: medium={}, bold={}", Fonts.MEDIUM != null, Fonts.BOLD != null);
+        ClientTickEvents.END_CLIENT_TICK.register(new ClientTickEvents.EndTick() {
+            int t = 0;
+            @Override public void onEndTick(net.minecraft.client.MinecraftClient c) {
+                if (++t == 200 && c.player != null) {
+                    int on = 0; for (Module m : ModuleManager.MODULES) if (m.isEnabled()) on++;
+                    LOGGER.info("selfcheck: in-world, enabled modules={}, menuKey={}", on, menuKey.getBoundKeyTranslationKey());
+                }
+            }
+        });
     }
 }

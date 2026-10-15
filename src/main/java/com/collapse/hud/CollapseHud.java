@@ -5,7 +5,9 @@ import com.collapse.ModuleManager;
 import com.collapse.render.Draw;
 import com.collapse.render.Fonts;
 import com.collapse.util.Theme;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.minecraft.util.Identifier;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderTickCounter;
@@ -17,8 +19,11 @@ import java.util.List;
 public final class CollapseHud {
     private CollapseHud() {}
 
+    private static long frames = 0;
+
     public static void register() {
-        HudRenderCallback.EVENT.register(CollapseHud::render);
+        HudElementRegistry.attachElementAfter(VanillaHudElements.MISC_OVERLAYS,
+                Identifier.of("collapse-client", "hud"), CollapseHud::render);
     }
 
     private static boolean on(String n) {
@@ -27,6 +32,7 @@ public final class CollapseHud {
     }
 
     private static void render(DrawContext ctx, RenderTickCounter tick) {
+        if (frames++ == 0) com.collapse.CollapseClient.LOGGER.info("Collapse HUD: first frame rendered");
         try {
             MinecraftClient mc = MinecraftClient.getInstance();
             if (mc.options == null || mc.options.hudHidden || mc.player == null) return;
@@ -68,7 +74,8 @@ public final class CollapseHud {
             }
 
             if (on("Notifications")) Notify.render(ctx, w, h);
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            if (frames % 600 == 1) com.collapse.CollapseClient.LOGGER.error("HUD render error", t);
         }
     }
 }
