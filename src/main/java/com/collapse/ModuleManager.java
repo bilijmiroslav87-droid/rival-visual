@@ -49,13 +49,10 @@ public final class ModuleManager {
         register(new Vignette());
         register(new TargetHud());
         register(new Armor());
-        register(new FullStatus());
         register(new Keystrokes());
-        register(new Coordinates());
-        register(new FpsInfo());
+        register(new InfoHud());
         register(new Watermark());
         register(new Notifications());
-        register(new Clock());
         register(new Cosmetics());
         // Player
         register(new AutoTotem());
