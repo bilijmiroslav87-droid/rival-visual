@@ -104,7 +104,7 @@ public class ClickMenuScreen extends Screen {
         return a.get();
     }
 
-    private float tabIndexY() { return tab >= 0 ? tab : (tab == TAB_FAV ? 5 : tab == TAB_PROFILES ? 6 : 7); }
+    private float tabIndexY() { return tab >= 0 ? tab : (tab == TAB_FAV ? 6 : tab == TAB_PROFILES ? 7 : 8); }
 
     private List<Module> list() {
         List<Module> out = new ArrayList<>();
@@ -131,7 +131,7 @@ public class ClickMenuScreen extends Screen {
             sc = Math.max(0.7f, Math.min(1.4f, ClientSettings.menuScale));
             float availW = width / sc, availH = height / sc;
             ww = Math.min(availW - 16, 560);
-            wh = Math.min(availH - 16, 330);
+            wh = Math.min(availH - 16, 372);
             if (Float.isNaN(posX)) { posX = (availW - ww) / 2f; posY = (availH - wh) / 2f; }
             posX = Math.max(-ww + 80, Math.min(availW - 80, posX));
             posY = Math.max(0, Math.min(availH - 30, posY));
@@ -225,8 +225,8 @@ public class ClickMenuScreen extends Screen {
         Fonts.MEDIUM.draw(ctx, "client", lx + 29, ly + 13, 7.5f, Draw.alpha(C_MUTED, o));
 
         // пункты
-        String[] names = {"Combat", "Movement", "Visuals", "Player", "Misc"};
-        float y = wy + 58, itemH = 24, x = wx + 8, w = sideW - 16;
+        String[] names = {"Combat", "Movement", "Visuals", "Player", "Misc", "Косметика"};
+        float y = wy + 58, itemH = 23, x = wx + 8, w = sideW - 16;
         // индикатор выбранного
         tabAnim.set(visualIndex());
         float indY = wy + 58 + tabAnim.get() * itemH + (tabAnim.get() > 4.5f ? 14 : 0) + (tabAnim.get() > 5.5f ? 0 : 0);
@@ -235,7 +235,7 @@ public class ClickMenuScreen extends Screen {
         for (int i = 0; i < names.length; i++) {
             navItem(ctx, mx, my, o, acc, x, y + i * itemH, w, itemH - 2, names[i], i, count(i), tab == i && search.isEmpty());
         }
-        float y2 = y + names.length * itemH + 14;
+        float y2 = y + names.length * itemH + 12;
         section(ctx, "ЛИЧНОЕ", x + 6, y2 - 11, o);
         navItem(ctx, mx, my, o, acc, x, y2, w, itemH - 2, "Избранное", TAB_FAV, favCount(), tab == TAB_FAV && search.isEmpty());
         navItem(ctx, mx, my, o, acc, x, y2 + itemH, w, itemH - 2, "Профили", TAB_PROFILES, -1, tab == TAB_PROFILES);
@@ -255,7 +255,7 @@ public class ClickMenuScreen extends Screen {
 
     private float visualIndex() {
         if (tab >= 0) return tab;
-        return tab == TAB_FAV ? 5.0f : tab == TAB_PROFILES ? 6.0f : 7.0f;
+        return tab == TAB_FAV ? 6.0f : tab == TAB_PROFILES ? 7.0f : 8.0f;
     }
 
     private void section(DrawContext ctx, String t, float x, float y, float o) {
@@ -294,60 +294,17 @@ public class ClickMenuScreen extends Screen {
         hits.add(new Hit(x, y, w, h, H_TAB, id, 0));
     }
 
-    /** Простые векторные иконки из примитивов (без пикселей и эмодзи). */
+    private static final String[] ICONS = {"combat", "movement", "visuals", "player", "misc", "cosmetics"};
+
+    /** Линейные PNG-иконки вкладок. */
     private void icon(DrawContext ctx, int id, float cx, float cy, int c) {
-        switch (id) {
-            case 0 -> { // Combat: ромб/мишень
-                Draw.circle(ctx, cx - 4.5f, cy - 4.5f, 9, c);
-                Draw.circle(ctx, cx - 2.5f, cy - 2.5f, 5, Theme.mix(C_SIDE, 0xFF000000, 0.0f));
-                Draw.circle(ctx, cx - 1.2f, cy - 1.2f, 2.4f, c);
-            }
-            case 1 -> { // Movement: стрелка
-                Draw.roundRect(ctx, cx - 4.5f, cy - 1, 9, 2, 1, c);
-                Draw.roundRect(ctx, cx + 0.5f, cy - 4.5f, 2, 6, 1, c);
-                Draw.roundRect(ctx, cx + 0.5f, cy - 0.5f, 2, 5.5f, 1, c);
-            }
-            case 2 -> { // Visuals: глаз
-                Draw.roundRect(ctx, cx - 5, cy - 3, 10, 6, 3, c);
-                Draw.circle(ctx, cx - 2, cy - 2, 4, C_SIDE);
-                Draw.circle(ctx, cx - 1, cy - 1, 2, c);
-            }
-            case 3 -> { // Player: человек
-                Draw.circle(ctx, cx - 2.5f, cy - 5, 5, c);
-                Draw.roundRect(ctx, cx - 4.5f, cy + 0.5f, 9, 4.5f, 2.5f, c);
-            }
-            case 4 -> { // Misc: сетка 2x2
-                Draw.roundRect(ctx, cx - 4.5f, cy - 4.5f, 4, 4, 1.5f, c);
-                Draw.roundRect(ctx, cx + 0.5f, cy - 4.5f, 4, 4, 1.5f, c);
-                Draw.roundRect(ctx, cx - 4.5f, cy + 0.5f, 4, 4, 1.5f, c);
-                Draw.roundRect(ctx, cx + 0.5f, cy + 0.5f, 4, 4, 1.5f, c);
-            }
-            case TAB_FAV -> star(ctx, cx, cy, 5.5f, c);
-            case TAB_PROFILES -> { // слои
-                Draw.roundRect(ctx, cx - 5, cy - 5, 10, 3.2f, 1.6f, c);
-                Draw.roundRect(ctx, cx - 5, cy - 1.5f, 10, 3.2f, 1.6f, Draw.alpha(c, 0.7f));
-                Draw.roundRect(ctx, cx - 5, cy + 2, 10, 3.2f, 1.6f, Draw.alpha(c, 0.45f));
-            }
-            case TAB_SETTINGS -> { // ползунки
-                Draw.roundRect(ctx, cx - 5, cy - 4, 10, 1.6f, 0.8f, Draw.alpha(c, 0.6f));
-                Draw.circle(ctx, cx - 3, cy - 5.2f, 4, c);
-                Draw.roundRect(ctx, cx - 5, cy + 2.4f, 10, 1.6f, 0.8f, Draw.alpha(c, 0.6f));
-                Draw.circle(ctx, cx + 1, cy + 1.2f, 4, c);
-            }
-            default -> Draw.circle(ctx, cx - 2, cy - 2, 4, c);
-        }
+        String n = id >= 0 && id < ICONS.length ? ICONS[id]
+                : id == TAB_FAV ? "fav" : id == TAB_PROFILES ? "profiles" : "settings";
+        Draw.icon(ctx, n, cx, cy, 13, c);
     }
 
     private void star(DrawContext ctx, float cx, float cy, float r, int c) {
-        // звезда из трёх повёрнутых по-разному "ромбов" через маленькие круги и бруски
-        Draw.roundRect(ctx, cx - 1.1f, cy - r, 2.2f, r * 2, 1.1f, c);
-        Draw.roundRect(ctx, cx - r, cy - 1.1f, r * 2, 2.2f, 1.1f, c);
-        float d = r * 0.62f;
-        Draw.circle(ctx, cx - d - 1, cy - d - 1, 2.2f, c);
-        Draw.circle(ctx, cx + d - 1.2f, cy - d - 1, 2.2f, c);
-        Draw.circle(ctx, cx - d - 1, cy + d - 1.2f, 2.2f, c);
-        Draw.circle(ctx, cx + d - 1.2f, cy + d - 1.2f, 2.2f, c);
-        Draw.circle(ctx, cx - r * 0.5f, cy - r * 0.5f, r, c);
+        Draw.icon(ctx, "star", cx, cy, r * 2.4f, c);
     }
 
     // ---------- верхняя панель ----------

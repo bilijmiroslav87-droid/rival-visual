@@ -8,6 +8,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
@@ -73,7 +74,14 @@ public class CollapseClient implements ClientModInitializer {
 
         ClientLifecycleEvents.CLIENT_STOPPING.register(c -> Config.save());
         CollapseHud.register();
-        LOGGER.info("=== {} v0.6.1 loaded ===", NAME);
+        try {
+            LivingEntityRenderLayerRegistrationCallback.EVENT.register((entityType, entityRenderer, helper, context) -> {
+                if (entityRenderer instanceof net.minecraft.client.render.entity.PlayerEntityRenderer per) {
+                    helper.register(new com.collapse.cosmetics.CosmeticLayer(per));
+                }
+            });
+        } catch (Throwable t) { LOGGER.error("Cosmetics layer registration failed", t); }
+        LOGGER.info("=== {} v0.7.0 loaded ===", NAME);
         LOGGER.info("modules: {}", ModuleManager.MODULES.size());
         LOGGER.info("fonts ok: medium={}, bold={}, head={}", Fonts.MEDIUM != null, Fonts.BOLD != null, Fonts.HEAD != null);
         ClientTickEvents.END_CLIENT_TICK.register(new ClientTickEvents.EndTick() {

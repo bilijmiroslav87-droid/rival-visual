@@ -17,6 +17,14 @@ public final class Draw {
     private static final Identifier SHADOW = Identifier.of("collapse-client", "ui/shadow.png");
     private static final Identifier GLOW = Identifier.of("collapse-client", "ui/glow.png");
 
+    /** Иконка из ui/icon_<name>.png (белая, красится тинтом). */
+    public static void icon(DrawContext ctx, String name, float cx, float cy, float size, int color) {
+        if (((color >>> 24) & 0xFF) == 0) return;
+        Identifier id = Identifier.of("collapse-client", "ui/icon_" + name + ".png");
+        int s = Math.max(1, Math.round(size));
+        ctx.drawTexture(RenderPipelines.GUI_TEXTURED, id, Math.round(cx - s / 2f), Math.round(cy - s / 2f), 0, 0, s, s, 64, 64, 64, 64, color);
+    }
+
     /** Заливка скруглённого прямоугольника. */
     public static void roundRect(DrawContext ctx, float fx, float fy, float fw, float fh, float radius, int color) {
         if (((color >>> 24) & 0xFF) == 0) return;

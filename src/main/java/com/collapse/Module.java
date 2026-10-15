@@ -9,7 +9,7 @@ import java.util.List;
 public abstract class Module {
     public enum Category {
         COMBAT("Combat"), MOVEMENT("Movement"), VISUALS("Visuals"),
-        PLAYER("Player"), MISC("Misc");
+        PLAYER("Player"), MISC("Misc"), COSMETICS("Косметика");
 
         public final String label;
         Category(String label) { this.label = label; }

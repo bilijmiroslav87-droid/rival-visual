@@ -1,0 +1,56 @@
+package com.collapse.cosmetics;
+
+import com.collapse.ModuleManager;
+import com.collapse.modules.Cosmetics;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.model.ModelPart;
+import net.minecraft.client.render.OverlayTexture;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderLayers;
+import net.minecraft.client.render.command.OrderedRenderCommandQueue;
+import net.minecraft.client.render.entity.feature.FeatureRenderer;
+import net.minecraft.client.render.entity.feature.FeatureRendererContext;
+import net.minecraft.client.render.entity.model.PlayerEntityModel;
+import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
+import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.math.RotationAxis;
+
+/**
+ * 3D-слой косметики на модели игрока. Рисуется только для локального игрока
+ * (и только если включён модуль Cosmetics).
+ */
+public class CosmeticLayer extends FeatureRenderer<PlayerEntityRenderState, PlayerEntityModel> {
+    private static final Identifier TEX = Identifier.of("collapse-client", "textures/cosmetics/atlas.png");
+
+    public CosmeticLayer(FeatureRendererContext<PlayerEntityRenderState, PlayerEntityModel> ctx) {
+        super(ctx);
+    }
+
+    @Override
+    public void render(MatrixStack m, OrderedRenderCommandQueue q, int light, PlayerEntityRenderState s, float yaw, float pitch) {
+        try {
+            Cosmetics c = Cosmetics.INSTANCE;
+            if (c == null || !c.isEnabled() || s.invisible) return;
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc.player == null || s.id != mc.player.getId()) return;
+            // от первого лица тело не рисуется, но слой всё равно вызывается для модели в F5 / инвентаре
+            c.draw(this, m, q, light, s);
+        } catch (Throwable t) {
+            com.collapse.CollapseClient.LOGGER.error("Cosmetics render error", t);
+        }
+    }
+
+    public RenderLayer layer(boolean glow) {
+        return glow ? RenderLayers.entityTranslucentEmissive(TEX) : RenderLayers.entityCutoutNoCull(TEX);
+    }
+
+    public void part(OrderedRenderCommandQueue q, ModelPart p, MatrixStack m, int light, int rgb, boolean glow) {
+        // цвет задаём через тинт слоя: сабмит ModelPart принимает ARGB-цвет в последнем int перегрузки
+        q.submitModelPart(p, m, layer(glow), glow ? 0xF000F0 : light, OverlayTexture.DEFAULT_UV, null, false, false, 0xFF000000 | rgb, null, 0);
+    }
+
+    public static RotationAxis X() { return RotationAxis.POSITIVE_X; }
+    public static RotationAxis Y() { return RotationAxis.POSITIVE_Y; }
+    public static RotationAxis Z() { return RotationAxis.POSITIVE_Z; }
+}
