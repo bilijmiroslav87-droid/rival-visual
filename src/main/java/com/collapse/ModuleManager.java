@@ -55,6 +55,7 @@ public final class ModuleManager {
         register(new FpsInfo());
         register(new Watermark());
         register(new Notifications());
+        register(new Clock());
         // Player
         register(new AutoTotem());
         register(new AutoRespawn());

@@ -17,8 +17,9 @@ public class Keystrokes extends Module {
     private void key(DrawContext ctx, int i, String l, float x, float y, float w, boolean on) {
         a[i].set(on ? 1f : 0f);
         float t = a[i].get();
-        Draw.roundRect(ctx, x, y, w, 18, 4, Theme.mix(0xCC16161E, Theme.accent(), t * 0.85f));
-        Fonts.MEDIUM.drawCentered(ctx, l, x + w / 2, y + 4, 9.5f, 0xFFFFFFFF);
+        Draw.roundRect(ctx, x, y, w, 18, 6, Theme.mix(0xDD0E0E14, Theme.accent(), t * 0.9f));
+        Draw.ring(ctx, x, y, w, 18, 6, Theme.mix(0x1FFFFFFF, 0x55FFFFFF, t));
+        Fonts.BOLD.drawCentered(ctx, l, x + w / 2, y + 5.5f, 8f, Theme.mix(0xFFFFFFFF, 0xFF0B0B10, t));
     }
 
     @Override

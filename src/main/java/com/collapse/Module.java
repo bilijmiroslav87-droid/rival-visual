@@ -24,6 +24,8 @@ public abstract class Module {
     private boolean enabled = false;
     private int bind = -1;
     private boolean saveEnabled = true;
+    private boolean favorite = false;
+    private boolean hidden = false;
     public final com.collapse.render.Anim anim = new com.collapse.render.Anim(0f, 12f);
 
     protected Module(String name, String description, Category category) {
@@ -44,6 +46,10 @@ public abstract class Module {
     public boolean isEnabled() { return enabled; }
     public int getBind() { return bind; }
     public void setBind(int k) { this.bind = k; }
+    public boolean isFavorite() { return favorite; }
+    public void setFavorite(boolean f) { this.favorite = f; }
+    public boolean isHidden() { return hidden; }
+    public void setHidden(boolean h) { this.hidden = h; }
     public boolean isSaveEnabled() { return saveEnabled; }
     protected void noSave() { this.saveEnabled = false; }
 

@@ -8,6 +8,15 @@ public class ColorSetting extends Setting<Integer> {
 
     public ColorSetting(String name, int def) { super(name, def); }
 
+    public void prev() {
+        for (int i = 0; i < PALETTE.length; i++) {
+            if (PALETTE[i] == value) { value = PALETTE[(i + PALETTE.length - 1) % PALETTE.length]; return; }
+        }
+        value = PALETTE[0];
+    }
+
+    public static int[] palette() { return PALETTE; }
+
     public void next() {
         for (int i = 0; i < PALETTE.length; i++) {
             if (PALETTE[i] == value) { value = PALETTE[(i + 1) % PALETTE.length]; return; }
