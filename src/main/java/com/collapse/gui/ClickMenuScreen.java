@@ -232,7 +232,7 @@ public class ClickMenuScreen extends Screen {
         Draw.roundGradientV(ctx, lx, ly, 22, 22, 7, Draw.alpha(acc, o), Draw.alpha(acc2, o));
         Fonts.HEAD.drawCentered(ctx, "C", lx + 11, ly + 5, 11f, Draw.alpha(0xFF0B0B10, o));
         Fonts.HEAD.draw(ctx, "Collapse", lx + 29, ly + 2, 9.5f, Draw.alpha(C_TEXT, o));
-        Fonts.MEDIUM.draw(ctx, "v0.9.2", lx + 29, ly + 13, 7.5f, Draw.alpha(C_MUTED, o));
+        Fonts.MEDIUM.draw(ctx, "v0.9.3", lx + 29, ly + 13, 7.5f, Draw.alpha(C_MUTED, o));
 
         Module.Category[] cats = Module.Category.values();
         float itemH = 23, x = wx + 8, w = sideW - 16, y = wy + 54;
