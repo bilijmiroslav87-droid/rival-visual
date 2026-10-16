@@ -27,67 +27,54 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Меню в стиле Nursultan Hub (Lua): компактное окно, слева вкладки, справа список карточек в один столбец.
- * Карточка: название слева, тумблер справа. ЛКМ: вкл/выкл. ПКМ: раскрыть настройки карточки прямо под ней.
- * Слайдер, список (клик по кругу), цвет (клик по палитре) показываются внутри раскрытой карточки.
+ * Меню в стиле Glass Menu: матовое стекло, слева сайдбар с вкладками, справа сетка карточек в 2 колонки.
+ * Карточка: название, статус (On/Off или значение), тумблер. ЛКМ: вкл/выкл. ПКМ: окно настроек модуля.
+ * Акцентный цвет используется только у включённых переключателей и ползунков.
  */
 public class ClickMenuScreen extends Screen {
-    // ---- палитра Nursultan Hub ----
-    private static final int C_BG = 0xFF0C090B;
-    private static final int C_CARD = 0xFF120D10;
-    private static final int C_PILL = 0xFF100C0E;
-    private static final int C_SIDE_ACT = 0xFF1B1013;
-    private static final int C_BORDER = 0xFF24181C;
-    private static final int C_BORDER_ACT = 0xFF5A242A;
-    private static final int C_TEXT = 0xFFEBEBEB;
-    private static final int C_MUTED = 0xFF786E73;
-    private static final int C_DIM = 0xFF484044;
-    private static final int C_TOGGLE_OFF = 0xFF241C20;
-    private static final int C_KNOB_OFF = 0xFF4E4449;
+    // ---- геометрия (виртуальные пиксели) ----
+    private static final int W = 640, H = 420;
+    private static final int SIDE_W = 150;
+    private static final int NAV_X = 10, NAV_Y = 62, NAV_H = 28, NAV_STEP = 32;
+    private static final int GRID_X = SIDE_W + 20, GRID_Y = 62, GRID_BOTTOM = H - 16;
+    private static final int GRID_W = W - GRID_X - 18;
+    private static final int GAP = 10, CARD_W = (GRID_W - GAP) / 2, CARD_H = 54, STEP = CARD_H + GAP;
+    private static final int POP_W = 250;
 
-    private static final int WIN_W = 420, WIN_H = 280;
+    // ---- цвета: матовое стекло ----
+    private static final int BODY = 0xDC0C0C10;
+    private static final int TEXT = 0xFFF2F2F5, DIM = 0xFF8A8F98;
 
-    /** Вкладки: имя, иконка, какие категории модулей показывать. */
-    private static final String[] TAB_NAMES = {"World", "Player", "Effects", "Screen", "Misc", "Combat"};
-    private static final String[] TAB_ICONS = {"visuals", "player", "cosmetics", "settings", "misc", "combat"};
+    private static final String[] TABS = {"Visuals", "Cosmetics", "HUD", "Player", "Movement", "Combat", "Misc"};
 
-    // ---- состояние (static: переживает закрытие меню) ----
     private static int tab = 0;
-    private static float winX = Float.NaN, winY = Float.NaN;
-    private static final float[] TSCROLL = new float[16];
-    private static final Map<Module, Boolean> OPEN = new HashMap<>();
+    private static final int[] TSCROLL = new int[TABS.length];
 
-    private enum Overlay { NONE, PROFILES }
-    private Overlay overlay = Overlay.NONE;
-
-    private final Anim openAnim = new Anim(0f, 10f);
-    private final Anim scrollAnim = new Anim(0f, 22f);
+    private final Anim openAnim = new Anim(0f, 12f);
     private final Map<Object, Anim> anims = new HashMap<>();
 
+    private Module popup = null;
+    private int popScroll = 0;
     private Module binding = null;
     private NumSetting dragging = null;
     private float dragX, dragW;
-    private boolean draggingWin = false;
-    private float dragOffX, dragOffY;
     private String search = "";
     private boolean searching = false;
     private String profileName = "";
     private boolean typingProfile = false;
+    private boolean profilesOpen = false;
     private String toast = "";
     private long toastAt = 0;
-    private float overlayScroll = 0, overlayMax = 0;
-    private float scrollMax = 0;
+    private int profScroll = 0;
 
-    private float sc;
-    private float wx, wy, ww, wh;
-    private float cx0, cy0, cw0, ch0; // область контента
-
-    private record Hit(float x, float y, float w, float h, int type, Object a, int b, int mask) {}
-    private static final int H_TAB = 1, H_CARD = 2, H_SLIDER = 3, H_MODE = 4, H_COLOR = 5, H_BOOL = 6, H_SEARCH = 7,
-            H_CLOSE = 8, H_DRAG = 9, H_PROF = 10, H_PSAVE = 11, H_PLOAD = 12, H_PDEL = 13, H_PNAME = 14,
-            H_OVER_CLOSE = 15, H_NOP = 16, H_THEME = 17, H_BIND = 18, H_FAV = 19;
+    private float ui = 1f;
     private final List<Hit> hits = new ArrayList<>();
-    private final Map<NumSetting, float[]> dragXFor = new HashMap<>();
+    private final Map<NumSetting, float[]> dragFor = new HashMap<>();
+
+    private record Hit(int x, int y, int w, int h, int type, Object a, int b, int mask) {}
+    private static final int H_TAB = 1, H_CARD = 2, H_SLIDER = 3, H_MODE = 4, H_COLOR = 5, H_BOOL = 6, H_SEARCH = 7,
+            H_PCLOSE = 8, H_PBODY = 9, H_PSAVE = 10, H_PLOAD = 11, H_PDEL = 12, H_PNAME = 13, H_PROF = 14,
+            H_PROFCLOSE = 15, H_PROFBODY = 16, H_THEME = 17;
 
     private ClickMenuScreen() { super(Text.literal("Collapse")); }
     public static ClickMenuScreen create() { return new ClickMenuScreen(); }
@@ -111,29 +98,33 @@ public class ClickMenuScreen extends Screen {
         return a.get();
     }
 
-    /** В какую вкладку попадает модуль. */
-    private static int tabOf(Module m) {
-        switch (m.getCategory()) {
-            case COMBAT: return 5;
-            case COSMETICS: return 2;
-            case PLAYER: return 1;
-            case MISC: return 4;
-            case MOVEMENT: return 1;
-            default: break;
-        }
-        String n = m.getName();
-        switch (n) {
-            case "Fullbright": case "CustomTime": case "CustomFog": case "NoRain": case "Chams":
-            case "Esp": case "Tracers": case "ChestEsp": case "ItemEsp":
-                return 0;
-            case "Zoom": case "FovChanger": case "Cosmetics":
-                return 2;
-            default:
-                return 3; // HUD / Crosshair / Vignette / TargetHUD / Armor / Keystrokes / Watermark ...
-        }
+    private float computeUi() {
+        float s = Math.min(width / (float) (W + 24), height / (float) (H + 24));
+        return Math.max(0.5f, Math.min(1.6f, s)) * Math.max(0.7f, Math.min(1.3f, ClientSettings.menuScale));
     }
 
-    private List<Module> list() {
+    private int vW() { return Math.round(width / ui); }
+    private int vH() { return Math.round(height / ui); }
+    private int left() { return (vW() - W) / 2; }
+    private int top() { return (vH() - H) / 2; }
+
+    /** Во вкладку попадают модули по категориям и имени. */
+    private static int tabOf(Module m) {
+        switch (m.getCategory()) {
+            case COSMETICS: return 1;
+            case PLAYER: return 3;
+            case MOVEMENT: return 4;
+            case COMBAT: return 5;
+            case MISC: return 6;
+            default: break;
+        }
+        return switch (m.getName()) {
+            case "TargetHUD", "Watermark", "Notifications", "Keystrokes", "Potions", "Armor", "Crosshair", "Vignette" -> 2;
+            default -> 0;
+        };
+    }
+
+    private List<Module> cards() {
         List<Module> out = new ArrayList<>();
         String q = search.toLowerCase();
         for (Module m : ModuleManager.MODULES) {
@@ -145,352 +136,299 @@ public class ClickMenuScreen extends Screen {
         return out;
     }
 
-    private static String sectionOf(Module m) {
-        String n = m.getName();
-        return switch (n) {
-            case "CustomFog", "Fullbright", "CustomTime", "NoRain" -> "Мир";
-            case "Esp", "Tracers", "ChestEsp", "ItemEsp", "Chams" -> "Цели";
-            case "Zoom", "FovChanger" -> "Камера";
-            case "Cosmetics" -> "Косметика";
-            case "Potions", "Watermark", "Notifications", "TargetHUD", "Keystrokes", "ArmorHUD" -> "HUD";
-            case "Crosshair", "Vignette" -> "Экран";
-            default -> m.getCategory().label;
-        };
+    private int contentH(int n) { int rows = (n + 1) / 2; return rows == 0 ? 0 : (rows - 1) * STEP + CARD_H; }
+    private int maxScroll(int n) { return Math.max(0, contentH(n) - (GRID_BOTTOM - GRID_Y)); }
+
+    private static int a(int rgb, float alpha) {
+        return (Math.max(0, Math.min(255, Math.round(alpha))) << 24) | (rgb & 0xFFFFFF);
     }
 
     // ================= отрисовка =================
     @Override
-    public void render(DrawContext ctx, int mx, int my, float delta) {
+    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         try {
-            float o = Anim.ease(openAnim.get());
-            if (ClientSettings.dimBackground) ctx.fillGradient(0, 0, width, height, (int) (110 * o) << 24, (int) (180 * o) << 24);
-            sc = Math.max(0.6f, Math.min(1.8f, ClientSettings.menuScale));
-            // окно подстраивается под экран: на узких экранах масштаб уменьшается автоматически
-            float fit = Math.min(1f, Math.min((width - 8f) / (WIN_W * sc), (height - 8f) / (WIN_H * sc)));
-            float s = sc * fit;
-            sc = s;
-            float availW = width / sc, availH = height / sc;
-            ww = WIN_W; wh = WIN_H;
-            if (Float.isNaN(winX) || fit < 1f) { winX = (availW - ww) / 2f; winY = (availH - wh) / 2f; }
-            winX = Math.max(-ww + 60, Math.min(availW - 60, winX));
-            winY = Math.max(0, Math.min(availH - 30, winY));
-            wx = winX; wy = winY + (1 - o) * 12;
+            ui = computeUi();
+            float p = Anim.ease(openAnim.get());
+            int vw = vW(), vh = vH();
+            int x = left(), y = top() + Math.round((1f - p) * 12f);
+            int ta = Math.round(255 * p);
+            int mx = Math.round(mouseX / ui), my = Math.round(mouseY / ui);
             hits.clear();
-            var m = ctx.getMatrices();
-            m.pushMatrix();
-            m.scale(sc, sc);
-            draw(ctx, mx / sc, my / sc, o);
-            m.popMatrix();
+            boolean modal = popup != null || profilesOpen;
+            int hmx = modal ? -9999 : mx, hmy = modal ? -9999 : my;
+
+            var mat = ctx.getMatrices();
+            mat.pushMatrix();
+            mat.scale(ui, ui);
+
+            if (ClientSettings.dimBackground) ctx.fill(0, 0, vw, vh, a(0x000000, 0x66 * p));
+            Draw.shadow(ctx, x, y, W, H, 12, 18);
+            Draw.roundRect(ctx, x, y, W, H, 12, a(0xFFFFFF, 0x1A * p));
+            Draw.roundRect(ctx, x + 1, y + 1, W - 2, H - 2, 11, a(0x0C0C10, 0xDC * p));
+
+            int acc = Theme.accent();
+            drawSidebar(ctx, x, y, hmx, hmy, p, ta, acc);
+            drawContent(ctx, x, y, hmx, hmy, p, ta, acc);
+
+            if (ClientSettings.showHints) {
+                String hint = binding != null ? "Нажмите клавишу для «" + binding.getName() + "» · ESC: сбросить"
+                        : "ЛКМ вкл/выкл  ·  ПКМ настройки  ·  СКМ бинд  ·  Ctrl+F поиск  ·  RShift закрыть";
+                Fonts.MEDIUM.draw(ctx, hint, x + 4, y + H + 8, 8f, a(binding != null ? acc : 0xFFFFFF, 0x80 * p));
+            }
+            String diag = "font " + (Fonts.MEDIUM.isOk() ? "ok (Poppins)" : "FALLBACK (vanilla)")
+                    + "   aura " + com.collapse.modules.ParticleCosmetics.class.getSimpleName();
+            Fonts.MEDIUM.drawRight(ctx, "font " + (Fonts.MEDIUM.isOk() ? "ok" : "FALLBACK") + "  v" + CollapseClient.VERSION, x + W - 4, y + H + 8, 7.5f, a(0xFFFFFF, 0x55 * p));
+            if (System.currentTimeMillis() - toastAt < 1800 && !toast.isEmpty()) {
+                int tw = Math.round(Fonts.BOLD.width(toast, 9f)) + 28;
+                int tx = x + W / 2 - tw / 2, ty = y + H - 44;
+                Draw.roundRect(ctx, tx, ty, tw, 22, 8, a(0xFFFFFF, 0x30));
+                Draw.roundRect(ctx, tx + 1, ty + 1, tw - 2, 20, 7, a(0x14161C, 0xF4));
+                Fonts.BOLD.drawCentered(ctx, toast, tx + tw / 2f, ty + 7, 9f, a(0xF2F2F5, ta));
+            }
+            if (popup != null) drawPopup(ctx, x, y, mx, my, p, ta, acc);
+            if (profilesOpen) drawProfiles(ctx, x, y, mx, my, p, ta, acc);
+
+            mat.popMatrix();
         } catch (Throwable t) {
             CollapseClient.LOGGER.error("Menu render error", t);
         }
     }
 
-    private void draw(DrawContext ctx, float mx, float my, float o) {
-        int acc = Theme.accent(), acc2 = Theme.accent2();
-        boolean blocked = overlay != Overlay.NONE;
-        float mxx = blocked ? -9999 : mx, myy = blocked ? -9999 : my;
+    private void drawSidebar(DrawContext ctx, int x, int y, int mx, int my, float p, int ta, int acc) {
+        Fonts.HEAD.draw(ctx, "COLLAPSE", x + NAV_X + 2, y + 22, 15f, a(0xF2F2F5, ta));
+        Fonts.MEDIUM.draw(ctx, "client  " + CollapseClient.VERSION, x + NAV_X + 3, y + 42, 8f, a(0x8A8F98, ta));
+        ctx.fill(x + SIDE_W, y + 16, x + SIDE_W + 1, y + H - 16, a(0xFFFFFF, 0x14 * p));
 
-        // окно с мягким свечением
-        Draw.glow(ctx, wx - 6, wy - 6, ww + 12, wh + 12, 18, Draw.alpha(Theme.withAlpha(acc, 44), o));
-        Draw.shadow(ctx, wx, wy, ww, wh, 10, 16);
-        Draw.roundRect(ctx, wx, wy, ww, wh, 10, Draw.alpha(C_BG, o));
-        Draw.ring(ctx, wx, wy, ww, wh, 10, Draw.alpha(C_BORDER, o));
-
-        // ---- верхняя полоса ----
-        hits.add(new Hit(wx, wy, ww, 36, H_DRAG, null, 0, 1));
-        drawLogo(ctx, wx + 8, wy + 3, o, acc, acc2);
-        drawSearch(ctx, mxx, myy, wx + 52, wy + 6, 190, 24, o, acc);
-        // кнопки Профили / Тема / закрыть
-        float bx = wx + ww - 32;
-        closeBtn(ctx, mxx, myy, bx, wy + 6, o, acc);
-        bx -= 6;
-        bx = pillBtn(ctx, mxx, myy, bx, wy + 6, 24, "Тема: " + Theme.name(), 1, o, acc);
-        bx -= 6;
-        pillBtn(ctx, mxx, myy, bx, wy + 6, 24, "Профили", 2, o, acc);
-
-        // ---- сайдбар ----
-        float sy = wy + 40;
-        for (int i = 0; i < TAB_NAMES.length; i++) {
-            drawTab(ctx, mxx, myy, wx + 8, sy + i * 29, 96, 26, i, o, acc);
+        for (int i = 0; i < TABS.length; i++) {
+            int ny = y + NAV_Y + i * NAV_STEP;
+            boolean sel = tab == i && search.isEmpty();
+            boolean hv = inside(mx, my, x + NAV_X, ny, SIDE_W - NAV_X * 2, NAV_H);
+            float t = smooth("nav" + i, sel ? 1f : (hv ? 0.9f : 0.45f), 12f);
+            float s = smooth("navs" + i, sel ? 1f : 0f, 14f);
+            if (s > 0.01f) {
+                Draw.roundRect(ctx, x + NAV_X, ny, SIDE_W - NAV_X * 2, NAV_H, 8, a(0xFFFFFF, 12 * p * s));
+                Draw.roundRect(ctx, x + NAV_X, ny + 7, 2, NAV_H - 14, 1, a(0xFFFFFF, 0xE0 * p * s));
+            }
+            Fonts.MEDIUM.draw(ctx, TABS[i], x + NAV_X + 14, ny + 9, 9.5f, a(0xF2F2F5, 255 * t * p));
+            hits.add(new Hit(x + NAV_X, ny, SIDE_W - NAV_X * 2, NAV_H, H_TAB, i, 0, 1));
         }
 
-        // ---- контент ----
-        cx0 = wx + 112; cy0 = wy + 40; cw0 = ww - 120; ch0 = wh - 48;
-        drawContent(ctx, mxx, myy, o, acc, acc2);
-
-        if (ClientSettings.showHints) {
-            String hint = binding != null ? "Нажмите клавишу для «" + binding.getName() + "»  ·  ESC: сбросить"
-                    : "ЛКМ: вкл/выкл · ПКМ: настройки · СКМ: бинд · Ctrl+F: поиск";
-            Fonts.MEDIUM.draw(ctx, hint, wx + 10, wy + wh + 6, 7.5f, Draw.alpha(binding != null ? acc : 0xAAFFFFFF, o * 0.7f));
-        }
-        {
-            String diag = "font " + (Fonts.MEDIUM != null && Fonts.MEDIUM.isOk() ? "ok/" + Fonts.MEDIUM.glyphCount() : "FALLBACK")
-                    + "  ·  cos " + com.collapse.cosmetics.CosmeticLayer.calls + "/" + com.collapse.cosmetics.CosmeticLayer.draws
-                    + "/" + com.collapse.cosmetics.CosmeticLayer.errors
-                    + "  ·  v" + CollapseClient.VERSION;
-            Fonts.MEDIUM.drawRight(ctx, diag, wx + ww - 4, wy + wh + 6, 7f, Draw.alpha(0xAAFFFFFF, o * 0.5f));
-        }
-        if (System.currentTimeMillis() - toastAt < 1800 && !toast.isEmpty()) {
-            float tw = Fonts.BOLD.width(toast, 9f) + 24;
-            float tx = wx + ww / 2 - tw / 2, ty = wy + wh - 38;
-            Draw.roundRect(ctx, tx, ty, tw, 20, 6, Draw.alpha(C_CARD, o));
-            Draw.ring(ctx, tx, ty, tw, 20, 6, Draw.alpha(C_BORDER_ACT, o));
-            Fonts.BOLD.drawCentered(ctx, toast, tx + tw / 2, ty + 6, 9f, Draw.alpha(C_TEXT, o));
-        }
-        if (overlay == Overlay.PROFILES) drawProfiles(ctx, mx, my, o, acc, acc2);
+        // нижние кнопки сайдбара: профили и тема
+        int by = y + H - 84;
+        sideBtn(ctx, x + NAV_X, by, "Profiles", mx, my, p, ta, 1);
+        sideBtn(ctx, x + NAV_X, by + 36, "Theme: " + Theme.name(), mx, my, p, ta, 2);
     }
 
-    private void drawLogo(DrawContext ctx, float x, float y, float o, int acc, int acc2) {
-        Draw.glow(ctx, x - 2, y - 2, 30, 30, 10, Draw.alpha(Theme.withAlpha(acc, 90), o));
-        Draw.roundGradientV(ctx, x + 2, y + 2, 26, 26, 8, Draw.alpha(acc2, o), Draw.alpha(acc, o));
-        Fonts.HEAD.drawCentered(ctx, "C", x + 15, y + 7, 13f, Draw.alpha(0xFF1A0709, o));
+    private void sideBtn(DrawContext ctx, int bx, int by, String label, int mx, int my, float p, int ta, int id) {
+        int w = SIDE_W - NAV_X * 2, h = 28;
+        boolean hv = inside(mx, my, bx, by, w, h);
+        float t = smooth("sb" + id, hv ? 1f : 0f, 16f);
+        Draw.roundRect(ctx, bx, by, w, h, 8, a(0xFFFFFF, (0x14 + 0x16 * t) * p));
+        Fonts.MEDIUM.drawCentered(ctx, Fonts.MEDIUM.fit(label, w - 12, 9f), bx + w / 2f, by + 9, 9f, a(0xF2F2F5, ta * (0.7f + 0.3f * t)));
+        hits.add(new Hit(bx, by, w, h, H_PROF, id, 0, 3));
     }
 
-    private void drawSearch(DrawContext ctx, float mx, float my, float x, float y, float w, float h, float o, int acc) {
+    private void drawContent(DrawContext ctx, int x, int y, int mx, int my, float p, int ta, int acc) {
+        String title = search.isEmpty() ? TABS[tab] : "Search";
+        List<Module> list = cards();
+        Fonts.HEAD.draw(ctx, title.toUpperCase(), x + GRID_X, y + 20, 15f, a(0xF2F2F5, ta));
+        Fonts.MEDIUM.draw(ctx, list.size() + " options", x + GRID_X, y + 40, 8f, a(0x8A8F98, ta));
+
+        // поле поиска справа в шапке
+        int sw = 150, sx = x + W - 18 - sw, sy = y + 16;
         float sf = smooth("search", searching ? 1f : 0f, 16f);
-        Draw.roundRect(ctx, x, y, w, h, 6, Draw.alpha(C_CARD, o));
-        Draw.ring(ctx, x, y, w, h, 6, Draw.alpha(Theme.mix(C_BORDER, Theme.withAlpha(acc, 200), sf), o));
-        Draw.ring(ctx, x + 8, y + 7, 8, 8, 4, Draw.alpha(C_MUTED, o));
-        Draw.roundRect(ctx, x + 15, y + 14, 3.5f, 1.5f, 0.7f, Draw.alpha(C_MUTED, o));
+        Draw.roundRect(ctx, sx, sy, sw, 24, 8, a(0xFFFFFF, (0x1C + 0x18 * sf) * p));
+        Draw.roundRect(ctx, sx + 1, sy + 1, sw - 2, 22, 7, a(0x0C0C10, 0xE0 * p));
         boolean blink = searching && (System.currentTimeMillis() / 500) % 2 == 0;
-        String shown = search.isEmpty() ? (searching ? (blink ? "|" : "") : "Search functions...")
-                : Fonts.MEDIUM.fit(search, w - 44, 9f) + (blink ? "|" : "");
-        Fonts.MEDIUM.draw(ctx, shown, x + 24, y + 8, 9f, Draw.alpha(search.isEmpty() ? C_MUTED : C_TEXT, o));
-        if (!search.isEmpty()) Fonts.BOLD.draw(ctx, "×", x + w - 13, y + 6, 11f, Draw.alpha(C_MUTED, o));
-        hits.add(new Hit(x, y, w, h, H_SEARCH, null, 0, 1));
-    }
+        String shown = search.isEmpty() ? (searching ? (blink ? "|" : "") : "Search...") : Fonts.MEDIUM.fit(search, sw - 30, 9f) + (blink ? "|" : "");
+        Fonts.MEDIUM.draw(ctx, shown, sx + 10, sy + 7, 9f, a(search.isEmpty() ? 0x8A8F98 : 0xF2F2F5, ta));
+        if (!search.isEmpty()) Fonts.BOLD.draw(ctx, "x", sx + sw - 14, sy + 6, 10f, a(0x8A8F98, ta));
+        hits.add(new Hit(sx, sy, sw, 24, H_SEARCH, null, 0, 1));
 
-    private void closeBtn(DrawContext ctx, float mx, float my, float x, float y, float o, int acc) {
-        boolean hv = in(mx, my, x, y, 24, 24);
-        float t = smooth("close", hv ? 1f : 0f, 18f);
-        Draw.roundRect(ctx, x, y, 24, 24, 6, Draw.alpha(C_CARD, o));
-        Draw.ring(ctx, x, y, 24, 24, 6, Draw.alpha(C_BORDER, o));
-        Fonts.BOLD.drawCentered(ctx, "X", x + 12, y + 7.5f, 10f, Draw.alpha(Theme.mix(C_MUTED, acc, t), o));
-        hits.add(new Hit(x, y, 24, 24, H_CLOSE, null, 0, 1));
-    }
+        int maxS = maxScroll(list.size());
+        TSCROLL[tab] = Math.min(TSCROLL[tab], maxS);
+        int scroll = TSCROLL[tab];
 
-    /** Кнопка-пилюля справа налево, возвращает левый край. */
-    private float pillBtn(DrawContext ctx, float mx, float my, float right, float y, float h, String label, int id, float o, int acc) {
-        float tw = Fonts.BOLD.width(label, 8f);
-        float w = tw + 18;
-        float x = right - w;
-        boolean hv = in(mx, my, x, y, w, h);
-        float t = smooth("pill" + id, hv ? 1f : 0f, 18f);
-        boolean act = id == 2 && overlay == Overlay.PROFILES;
-        Draw.roundRect(ctx, x, y, w, h, 6, Draw.alpha(act ? C_SIDE_ACT : C_CARD, o));
-        Draw.ring(ctx, x, y, w, h, 6, Draw.alpha(Theme.mix(C_BORDER, C_BORDER_ACT, Math.max(t, act ? 1f : 0f)), o));
-        Fonts.BOLD.drawCentered(ctx, label, x + w / 2, y + 8, 8f, Draw.alpha(Theme.mix(C_MUTED, C_TEXT, t), o));
-        hits.add(new Hit(x, y, w, h, H_PROF, id, 0, 3));
-        return x;
-    }
-
-    private void drawTab(DrawContext ctx, float mx, float my, float x, float y, float w, float h, int i, float o, int acc) {
-        boolean sel = tab == i && search.isEmpty();
-        boolean hv = in(mx, my, x, y, w, h);
-        float s = smooth("tab" + i, sel ? 1f : 0f, 16f);
-        float hvv = smooth("tabh" + i, hv ? 1f : 0f, 18f);
-        if (s > 0.01f || hvv > 0.01f) {
-            Draw.roundRect(ctx, x, y, w, h, 6, Draw.alpha(Theme.withAlpha(C_SIDE_ACT, (int) (255 * Math.max(s, hvv * 0.5f))), o));
-        }
-        if (s > 0.01f) Draw.ring(ctx, x, y, w, h, 6, Draw.alpha(Theme.withAlpha(C_BORDER_ACT, (int) (255 * s)), o));
-        Draw.icon(ctx, TAB_ICONS[i], x + 15, y + h / 2f, 13, Draw.alpha(Theme.mix(C_MUTED, acc, s), o));
-        Fonts.MEDIUM.draw(ctx, TAB_NAMES[i], x + 28, y + h / 2f - 4.5f, 9.5f, Draw.alpha(Theme.mix(C_MUTED, C_TEXT, Math.max(s, hvv * 0.6f)), o));
-        hits.add(new Hit(x, y, w, h, H_TAB, i, 0, 1));
-    }
-
-    // ---------- контент ----------
-    private float settingH(Setting<?> s) {
-        return s instanceof NumSetting ? 30 : 22;
-    }
-
-    private float cardH(Module m) {
-        float t = smooth("open" + m.getName(), OPEN.getOrDefault(m, false) ? 1f : 0f, 14f);
-        float full = 6;
-        for (Setting<?> s : m.getSettings()) full += settingH(s);
-        if (m.getSettings().isEmpty()) full = 0;
-        return 30 + full * t;
-    }
-
-    private void drawContent(DrawContext ctx, float mx, float my, float o, int acc, int acc2) {
-        List<Module> mods = list();
-        // общая высота
-        float total = 0;
-        String lastSec = null;
-        for (Module m : mods) {
-            String sec = search.isEmpty() ? sectionOf(m) : null;
-            if (sec != null && !sec.equals(lastSec)) { total += 18; lastSec = sec; }
-            total += cardH(m) + 5;
-        }
-        scrollMax = Math.max(0, total - ch0);
-        TSCROLL[tab] = Math.min(TSCROLL[tab], scrollMax);
-        scrollAnim.set(TSCROLL[tab]);
-        float sy = scrollAnim.get();
-
-        if (mods.isEmpty()) {
-            Fonts.BOLD.drawCentered(ctx, "Ничего не найдено", cx0 + cw0 / 2, cy0 + ch0 / 2 - 4, 9.5f, Draw.alpha(C_MUTED, o));
+        if (list.isEmpty()) {
+            Fonts.MEDIUM.drawCentered(ctx, "Ничего не найдено", x + GRID_X + GRID_W / 2f, y + 200, 10f, a(0x8A8F98, ta));
             return;
         }
-        ctx.enableScissor(Math.round((cx0 - 2) * sc), Math.round(cy0 * sc), Math.round((cx0 + cw0 + 2) * sc), Math.round((cy0 + ch0) * sc));
-        float y = cy0 - sy;
-        lastSec = null;
-        for (Module m : mods) {
-            String sec = search.isEmpty() ? sectionOf(m) : null;
-            if (sec != null && !sec.equals(lastSec)) {
-                lastSec = sec;
-                if (y + 16 > cy0 - 2 && y < cy0 + ch0) Fonts.BOLD.draw(ctx, sec.toUpperCase(), cx0 + 2, y + 3, 8f, Draw.alpha(acc, o));
-                y += 18;
-            }
-            float h = cardH(m);
-            if (y + h >= cy0 - 2 && y <= cy0 + ch0 + 2) drawCard(ctx, mx, my, m, cx0, y, cw0 - 6, h, o, acc, acc2);
-            y += h + 5;
+        ctx.enableScissor(Math.round((x + GRID_X - 4) * ui), Math.round((y + GRID_Y - 2) * ui),
+                Math.round((x + W - 8) * ui), Math.round((y + GRID_BOTTOM + 2) * ui));
+        for (int i = 0; i < list.size(); i++) {
+            int cx = x + GRID_X + (i % 2) * (CARD_W + GAP);
+            int cy = y + GRID_Y + (i / 2) * STEP - scroll;
+            if (cy + CARD_H < y + GRID_Y - 2 || cy > y + GRID_BOTTOM + 2) continue;
+            boolean vis = my >= y + GRID_Y && my <= y + GRID_BOTTOM;
+            drawCard(ctx, list.get(i), cx, cy, vis && inside(mx, my, cx, cy, CARD_W, CARD_H), p, ta, acc);
+            hits.add(new Hit(cx, cy, CARD_W, CARD_H, H_CARD, list.get(i), 0, 7));
         }
         ctx.disableScissor();
-        if (scrollMax > 1) {
-            float th = Math.max(16, ch0 * ch0 / total);
-            float ty = cy0 + (ch0 - th) * (sy / scrollMax);
-            Draw.roundRect(ctx, cx0 + cw0 - 2, ty, 2, th, 1, Draw.alpha(C_BORDER_ACT, o));
+        if (maxS > 0) {
+            int track = GRID_BOTTOM - GRID_Y;
+            int thumb = Math.max(18, track * track / contentH(list.size()));
+            int ty = y + GRID_Y + (track - thumb) * scroll / maxS;
+            Draw.roundRect(ctx, x + W - 9, ty, 3, thumb, 1, a(0xFFFFFF, 0x30 * p));
         }
     }
 
-    private void drawCard(DrawContext ctx, float mx, float my, Module m, float x, float y, float w, float h, float o, int acc, int acc2) {
-        boolean inView = my >= cy0 && my <= cy0 + ch0;
-        boolean hv = inView && in(mx, my, x, y, w, 30);
+    private void drawCard(DrawContext ctx, Module m, int cx, int cy, boolean hot, float p, int ta, int acc) {
         float on = smooth(m, m.isEnabled() ? 1f : 0f, 14f);
-        float hvv = smooth("ch" + m.getName(), hv ? 1f : 0f, 18f);
-        boolean open = OPEN.getOrDefault(m, false);
+        float hv = smooth("ch" + m.getName(), hot ? 1f : 0f, 16f);
+        Draw.roundRect(ctx, cx, cy, CARD_W, CARD_H, 8, a(0xFFFFFF, (0x18 + 0x0E * hv) * p));
+        Draw.roundRect(ctx, cx + 1, cy + 1, CARD_W - 2, CARD_H - 2, 7, a(0xFFFFFF, 6 * p));
 
-        Draw.roundRect(ctx, x, y, w, h, 6, Draw.alpha(Theme.mix(C_PILL, 0xFF171014, hvv), o));
-        Draw.ring(ctx, x, y, w, h, 6, Draw.alpha(Theme.mix(C_BORDER, C_BORDER_ACT, Math.max(on * 0.8f, hvv * 0.6f)), o));
+        Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(m.getName(), CARD_W - 64, 10f), cx + 12, cy + 11, 10f, a(0xF2F2F5, ta));
+        String sub = m.getBind() > 0 ? (m.isEnabled() ? "On" : "Off") + "  ·  " + keyName(m.getBind()) : (m.isEnabled() ? "On" : "Off");
+        if (binding == m) sub = "press a key...";
+        Fonts.MEDIUM.draw(ctx, sub, cx + 12, cy + 27, 8f, a(binding == m ? acc : 0x8A8F98, ta));
 
-        // название и описание
-        Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(m.getName(), w - 110, 10.5f), x + 10, y + 5.5f, 10.5f, Draw.alpha(Theme.mix(C_TEXT, 0xFFFFFFFF, on), o));
-        Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(m.getDescription(), w - 110, 6.8f), x + 10, y + 18.5f, 6.8f, Draw.alpha(C_DIM, o));
-
-        // тумблер (32x16 как в Lua)
-        float tw = 32, th = 16, tx = x + w - tw - 8, ty = y + 7;
-        Draw.roundRect(ctx, tx, ty, tw, th, 8, Draw.alpha(Theme.mix(C_TOGGLE_OFF, acc, on), o));
-        Draw.circle(ctx, tx + 2 + (tw - 16) * on, ty + 2, 12, Draw.alpha(Theme.mix(C_KNOB_OFF, 0xFFFFFFFF, on), o));
-
-        // бинд-чип и стрелка настроек
-        float rx = tx - 6;
+        drawSwitch(ctx, cx + CARD_W - 42, cy + 19, on, p);
         if (!m.getSettings().isEmpty()) {
-            Fonts.BOLD.drawRight(ctx, open ? "˅" : "˃", rx, y + 8, 9f, Draw.alpha(Theme.mix(C_MUTED, acc, open ? 1f : 0f), o));
-            rx -= 12;
-        }
-        String bt = binding == m ? "..." : (m.getBind() > 0 ? keyName(m.getBind()) : null);
-        if (bt != null) {
-            float bw = Fonts.BOLD.width(bt, 6.5f) + 9;
-            Draw.roundRect(ctx, rx - bw, y + 9, bw, 12, 4, Draw.alpha(0xFF1E1519, o));
-            Fonts.BOLD.drawCentered(ctx, bt, rx - bw / 2, y + 11.5f, 6.5f, Draw.alpha(acc, o));
-        }
-        hits.add(new Hit(x, y, w, 30, H_CARD, m, 0, 7));
-
-        // раскрытые настройки
-        float t = smooth("open" + m.getName(), open ? 1f : 0f, 14f);
-        if (t > 0.05f && h > 34) {
-            ctx.fill(Math.round(x + 10), Math.round(y + 30), Math.round(x + w - 10), Math.round(y + 31), Draw.alpha(C_BORDER, o));
-            float sy = y + 34;
-            for (Setting<?> s : m.getSettings()) {
-                if (sy + settingH(s) <= y + h + 1) drawSetting(ctx, mx, my, s, x + 10, sy, w - 20, o * t, acc, acc2, inView);
-                sy += settingH(s);
-            }
+            Fonts.MEDIUM.draw(ctx, m.getSettings().size() + " opt", cx + 12, cy + CARD_H - 13, 7f, a(0x8A8F98, ta * 0.7f));
         }
     }
 
-    private void drawSetting(DrawContext ctx, float mx, float my, Setting<?> s, float x, float y, float w, float o, int acc, int acc2, boolean inView) {
+    private void drawSwitch(DrawContext ctx, int x, int y, float anim, float p) {
+        int w = 30, h = 16;
+        int acc = Theme.accent();
+        int track = Draw.lerpArgb(a(0xFFFFFF, 0x30), a(acc, 0xFF), anim);
+        Draw.roundRect(ctx, x, y, w, h, 8, withA(track, p));
+        int kx = Math.round(x + 2 + (w - h) * anim);
+        Draw.roundRect(ctx, kx, y + 2, h - 4, h - 4, 6, a(0xFFFFFF, 255 * p));
+    }
+
+    private static int withA(int argb, float p) {
+        int al = Math.round(((argb >>> 24) & 0xFF) * p);
+        return (al << 24) | (argb & 0xFFFFFF);
+    }
+
+    // ---------- окно настроек модуля ----------
+    private int popH(Module m) {
+        int h = 56;
+        for (Setting<?> s : m.getSettings()) h += s instanceof NumSetting ? 34 : 26;
+        return Math.min(h + 8, 360);
+    }
+
+    private void drawPopup(DrawContext ctx, int x, int y, int mx, int my, float p, int ta, int acc) {
+        Module m = popup;
+        int ph = popH(m);
+        int px = x + (W - POP_W) / 2, py = y + (H - ph) / 2;
+        ctx.fill(x, y, x + W, y + H, a(0x000000, 0x66));
+        hits.add(new Hit(x, y, W, H, H_PCLOSE, null, 0, 7));
+        Draw.shadow(ctx, px, py, POP_W, ph, 12, 18);
+        Draw.roundRect(ctx, px, py, POP_W, ph, 12, a(0xFFFFFF, 0x1A));
+        Draw.roundRect(ctx, px + 1, py + 1, POP_W - 2, ph - 2, 11, a(0x14161C, 0xF8));
+        hits.add(new Hit(px, py, POP_W, ph, H_PBODY, null, 0, 7));
+
+        Fonts.MEDIUM.draw(ctx, m.getName(), px + 16, py + 14, 11f, a(0xF2F2F5, ta));
+        boolean cx = inside(mx, my, px + POP_W - 28, py + 8, 20, 20);
+        Fonts.BOLD.draw(ctx, "x", px + POP_W - 20, py + 13, 11f, a(cx ? 0xF2F2F5 : 0x8A8F98, ta));
+        hits.add(new Hit(px + POP_W - 28, py + 8, 20, 20, H_PCLOSE, null, 0, 1));
+        ctx.fill(px + 16, py + 34, px + POP_W - 16, py + 35, a(0xFFFFFF, 0x18));
+        Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(m.getDescription(), POP_W - 32, 8f), px + 16, py + 40, 8f, a(0x8A8F98, ta));
+
+        int sy = py + 58;
+        ctx.enableScissor(Math.round(px * ui), Math.round((py + 54) * ui), Math.round((px + POP_W) * ui), Math.round((py + ph - 6) * ui));
+        for (Setting<?> s : m.getSettings()) {
+            int sh = s instanceof NumSetting ? 34 : 26;
+            drawSetting(ctx, s, px + 16, sy - popScroll, POP_W - 32, mx, my, p, ta, acc);
+            sy += sh;
+        }
+        ctx.disableScissor();
+    }
+
+    private void drawSetting(DrawContext ctx, Setting<?> s, int x, int y, int w, int mx, int my, float p, int ta, int acc) {
         if (s instanceof BoolSetting b) {
             float t = smooth(b, b.get() ? 1f : 0f, 16f);
-            Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(s.getName(), w - 40, 9f), x, y + 5, 9f, Draw.alpha(Theme.mix(C_MUTED, C_TEXT, t), o));
-            float tw = 26, th = 13, tx = x + w - tw, ty = y + 3;
-            Draw.roundRect(ctx, tx, ty, tw, th, 6.5f, Draw.alpha(Theme.mix(C_TOGGLE_OFF, acc, t), o));
-            Draw.circle(ctx, tx + 1.5f + (tw - 10 - 3) * t + 0.5f, ty + 1.5f, 10, Draw.alpha(Theme.mix(C_KNOB_OFF, 0xFFFFFFFF, t), o));
-            hits.add(new Hit(x - 4, y, w + 8, 20, H_BOOL, s, 0, 1));
+            Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(s.getName(), w - 44, 9f), x, y + 4, 9f, a(0xF2F2F5, ta));
+            drawSwitch(ctx, x + w - 30, y + 1, t, 1f);
+            hits.add(new Hit(x - 4, y - 2, w + 8, 22, H_BOOL, s, 0, 1));
         } else if (s instanceof ColorSetting cs) {
-            Fonts.MEDIUM.draw(ctx, s.getName(), x, y + 5, 9f, Draw.alpha(C_MUTED, o));
-            Draw.roundRect(ctx, x + w - 32, y + 2, 32, 16, 5, Draw.alpha(C_BORDER_ACT, o));
-            Draw.roundRect(ctx, x + w - 31, y + 3, 30, 14, 4, Draw.alpha(cs.get(), o));
-            hits.add(new Hit(x - 4, y, w + 8, 20, H_COLOR, s, 0, 3));
+            Fonts.MEDIUM.draw(ctx, s.getName(), x, y + 4, 9f, a(0xF2F2F5, ta));
+            Draw.roundRect(ctx, x + w - 34, y, 34, 18, 6, a(0xFFFFFF, 0x30));
+            Draw.roundRect(ctx, x + w - 33, y + 1, 32, 16, 5, 0xFF000000 | (cs.get() & 0xFFFFFF));
+            hits.add(new Hit(x - 4, y - 2, w + 8, 22, H_COLOR, s, 0, 3));
         } else if (s instanceof ModeSetting ms) {
-            Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(s.getName(), w * 0.45f, 9f), x, y + 5, 9f, Draw.alpha(C_MUTED, o));
-            float dw = Math.min(w * 0.55f, 100), dx = x + w - dw;
-            boolean hov = inView && in(mx, my, dx, y + 1, dw, 18);
-            Draw.roundRect(ctx, dx, y + 1, dw, 18, 5, Draw.alpha(hov ? 0xFF1B1317 : C_CARD, o));
-            Draw.ring(ctx, dx, y + 1, dw, 18, 5, Draw.alpha(hov ? C_BORDER_ACT : C_BORDER, o));
-            Fonts.BOLD.drawCentered(ctx, Fonts.BOLD.fit(ms.get(), dw - 22, 8f), dx + dw / 2, y + 6, 8f, Draw.alpha(acc, o));
-            Fonts.BOLD.draw(ctx, "‹", dx + 5, y + 4.5f, 9f, Draw.alpha(C_MUTED, o));
-            Fonts.BOLD.drawRight(ctx, "›", dx + dw - 5, y + 4.5f, 9f, Draw.alpha(C_MUTED, o));
-            hits.add(new Hit(dx, y + 1, dw / 2, 18, H_MODE, ms, -1, 3));
-            hits.add(new Hit(dx + dw / 2, y + 1, dw / 2, 18, H_MODE, ms, 1, 3));
+            Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(s.getName(), w * 0.45f, 9f), x, y + 4, 9f, a(0xF2F2F5, ta));
+            int dw = Math.min(Math.round(w * 0.55f), 120), dx = x + w - dw;
+            boolean hov = inside(mx, my, dx, y - 1, dw, 20);
+            Draw.roundRect(ctx, dx, y - 1, dw, 20, 7, a(0xFFFFFF, hov ? 0x26 : 0x18));
+            Fonts.MEDIUM.drawCentered(ctx, Fonts.MEDIUM.fit(ms.get(), dw - 26, 8.5f), dx + dw / 2f, y + 4, 8.5f, a(0xF2F2F5, ta));
+            Fonts.BOLD.draw(ctx, "<", dx + 6, y + 3, 9f, a(0x8A8F98, ta));
+            Fonts.BOLD.drawRight(ctx, ">", dx + dw - 6, y + 3, 9f, a(0x8A8F98, ta));
+            hits.add(new Hit(dx, y - 1, dw / 2, 20, H_MODE, ms, -1, 3));
+            hits.add(new Hit(dx + dw / 2, y - 1, dw / 2, 20, H_MODE, ms, 1, 3));
         } else if (s instanceof NumSetting ns) {
-            float p = smooth(ns, (float) ns.getPercent(), 22f);
+            float pr = smooth(ns, (float) ns.getPercent(), 22f);
             String v = (ns.get() % 1 == 0) ? String.valueOf(ns.get().intValue()) : String.format(java.util.Locale.US, "%.2f", ns.get());
-            Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(s.getName(), w - 40, 9f), x, y + 3, 9f, Draw.alpha(C_MUTED, o));
-            Fonts.BOLD.drawRight(ctx, v, x + w, y + 3, 9f, Draw.alpha(C_TEXT, o));
-            float by = y + 20;
-            Draw.roundRect(ctx, x, by, w, 4, 2, Draw.alpha(C_TOGGLE_OFF, o));
-            Draw.roundRect(ctx, x, by, Math.max(4, w * p), 4, 2, Draw.alpha(acc, o));
-            Draw.circle(ctx, x + w * p - 4, by - 2, 8, Draw.alpha(0xFFFFFFFF, o));
-            hits.add(new Hit(x - 5, y + 12, w + 10, 18, H_SLIDER, ns, 0, 1));
-            dragXFor.put(ns, new float[]{x, w});
+            Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(s.getName(), w - 50, 9f), x, y + 1, 9f, a(0xF2F2F5, ta));
+            Fonts.MEDIUM.drawRight(ctx, v, x + w, y + 1, 9f, a(0x8A8F98, ta));
+            int by = y + 20;
+            Draw.roundRect(ctx, x, by, w, 4, 2, a(0xFFFFFF, 0x22));
+            int fw = Math.max(4, Math.round(w * pr));
+            Draw.roundRect(ctx, x, by, fw, 4, 2, a(acc, 0xE0));
+            Draw.circle(ctx, x + fw - 4, by - 2, 8, a(0xFFFFFF, 0xFF));
+            hits.add(new Hit(x - 5, y + 12, w + 10, 20, H_SLIDER, ns, 0, 1));
+            dragFor.put(ns, new float[]{x, w});
         }
     }
 
     // ---------- профили ----------
-    private void drawProfiles(DrawContext ctx, float mx, float my, float o, int acc, int acc2) {
-        ctx.fill(0, 0, width, height, Draw.alpha(0x99000000, o));
-        hits.add(new Hit(0, 0, width / sc, height / sc, H_OVER_CLOSE, null, 0, 1));
-        float w = 280, h = 240;
-        float x = wx + ww / 2 - w / 2, y = wy + wh / 2 - h / 2;
-        Draw.glow(ctx, x - 4, y - 4, w + 8, h + 8, 14, Draw.alpha(Theme.withAlpha(acc, 40), o));
-        Draw.roundRect(ctx, x, y, w, h, 10, Draw.alpha(C_BG, o));
-        Draw.ring(ctx, x, y, w, h, 10, Draw.alpha(C_BORDER, o));
-        hits.add(new Hit(x, y, w, h, H_NOP, null, 0, 7));
-        Fonts.HEAD.draw(ctx, "Профили", x + 14, y + 11, 11f, Draw.alpha(C_TEXT, o));
-        boolean ch = in(mx, my, x + w - 30, y + 8, 20, 20);
-        Fonts.BOLD.drawCentered(ctx, "X", x + w - 20, y + 12, 10f, Draw.alpha(ch ? acc : C_MUTED, o));
-        hits.add(new Hit(x + w - 30, y + 8, 20, 20, H_OVER_CLOSE, null, 0, 1));
+    private void drawProfiles(DrawContext ctx, int x, int y, int mx, int my, float p, int ta, int acc) {
+        int pw = 300, ph = 280;
+        int px = x + (W - pw) / 2, py = y + (H - ph) / 2;
+        ctx.fill(x, y, x + W, y + H, a(0x000000, 0x66));
+        hits.add(new Hit(x, y, W, H, H_PROFCLOSE, null, 0, 7));
+        Draw.shadow(ctx, px, py, pw, ph, 12, 18);
+        Draw.roundRect(ctx, px, py, pw, ph, 12, a(0xFFFFFF, 0x1A));
+        Draw.roundRect(ctx, px + 1, py + 1, pw - 2, ph - 2, 11, a(0x14161C, 0xF8));
+        hits.add(new Hit(px, py, pw, ph, H_PROFBODY, null, 0, 7));
+        Fonts.MEDIUM.draw(ctx, "Profiles", px + 16, py + 14, 11f, a(0xF2F2F5, ta));
+        boolean cx = inside(mx, my, px + pw - 28, py + 8, 20, 20);
+        Fonts.BOLD.draw(ctx, "x", px + pw - 20, py + 13, 11f, a(cx ? 0xF2F2F5 : 0x8A8F98, ta));
+        hits.add(new Hit(px + pw - 28, py + 8, 20, 20, H_PROFCLOSE, null, 0, 1));
+        ctx.fill(px + 16, py + 34, px + pw - 16, py + 35, a(0xFFFFFF, 0x18));
 
-        float ax = x + 14, aw = w - 28, ay = y + 38, fh = 26, bw = 74, fw = aw - bw - 6;
+        int ax = px + 16, aw = pw - 32, ay = py + 46, fh = 26, bw = 84, fw = aw - bw - 8;
         float fa = smooth("pname", typingProfile ? 1f : 0f, 16f);
-        Draw.roundRect(ctx, ax, ay, fw, fh, 6, Draw.alpha(C_CARD, o));
-        Draw.ring(ctx, ax, ay, fw, fh, 6, Draw.alpha(Theme.mix(C_BORDER, Theme.withAlpha(acc, 200), fa), o));
+        Draw.roundRect(ctx, ax, ay, fw, fh, 8, a(0xFFFFFF, 0x18 + 0x18 * fa));
+        Draw.roundRect(ctx, ax + 1, ay + 1, fw - 2, fh - 2, 7, a(0x0C0C10, 0xE0));
         boolean blink = typingProfile && (System.currentTimeMillis() / 500) % 2 == 0;
-        String shown = profileName.isEmpty() ? (typingProfile ? (blink ? "|" : "") : "Имя профиля") : profileName + (blink ? "|" : "");
-        Fonts.MEDIUM.draw(ctx, shown, ax + 10, ay + 9, 9f, Draw.alpha(profileName.isEmpty() ? C_MUTED : C_TEXT, o));
+        String shown = profileName.isEmpty() ? (typingProfile ? (blink ? "|" : "") : "Profile name") : profileName + (blink ? "|" : "");
+        Fonts.MEDIUM.draw(ctx, shown, ax + 10, ay + 8, 9f, a(profileName.isEmpty() ? 0x8A8F98 : 0xF2F2F5, ta));
         hits.add(new Hit(ax, ay, fw, fh, H_PNAME, null, 0, 1));
-        Draw.roundRect(ctx, ax + fw + 6, ay, bw, fh, 6, Draw.alpha(acc, o));
-        Fonts.BOLD.drawCentered(ctx, "Сохранить", ax + fw + 6 + bw / 2, ay + 9, 8.5f, Draw.alpha(0xFF1A0709, o));
-        hits.add(new Hit(ax + fw + 6, ay, bw, fh, H_PSAVE, null, 0, 1));
+        Draw.roundRect(ctx, ax + fw + 8, ay, bw, fh, 8, a(0xFFFFFF, 0x24));
+        Fonts.MEDIUM.drawCentered(ctx, "Save", ax + fw + 8 + bw / 2f, ay + 8, 9f, a(0xF2F2F5, ta));
+        hits.add(new Hit(ax + fw + 8, ay, bw, fh, H_PSAVE, null, 0, 1));
 
         List<String> ps = Config.profiles();
-        float ly = ay + fh + 10, viewH = y + h - ly - 10;
-        ctx.enableScissor(Math.round(ax * sc), Math.round(ly * sc), Math.round((ax + aw) * sc), Math.round((ly + viewH) * sc));
-        float cy = ly - overlayScroll;
-        if (ps.isEmpty()) Fonts.MEDIUM.drawCentered(ctx, "Профилей пока нет", ax + aw / 2, ly + 30, 9f, Draw.alpha(C_MUTED, o));
-        for (String p : ps) {
-            boolean act = p.equals(Config.currentProfile);
-            Draw.roundRect(ctx, ax, cy, aw, 28, 6, Draw.alpha(C_PILL, o));
-            Draw.ring(ctx, ax, cy, aw, 28, 6, Draw.alpha(act ? C_BORDER_ACT : C_BORDER, o));
-            Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(p, aw - 130, 10f), ax + 10, cy + 9, 10f, Draw.alpha(act ? acc : C_TEXT, o));
-            float bx = ax + aw - 8 - 48;
-            Draw.roundRect(ctx, bx, cy + 5, 48, 18, 5, Draw.alpha(0xFF2A1519, o));
-            Fonts.BOLD.drawCentered(ctx, "Удалить", bx + 24, cy + 10, 7.5f, Draw.alpha(0xFFFF6B7D, o));
-            hits.add(new Hit(bx, cy + 5, 48, 18, H_PDEL, p, 0, 1));
-            bx -= 52;
-            Draw.roundRect(ctx, bx, cy + 5, 48, 18, 5, Draw.alpha(Theme.withAlpha(acc, 50), o));
-            Fonts.BOLD.drawCentered(ctx, "Загрузить", bx + 24, cy + 10, 7.5f, Draw.alpha(acc, o));
-            hits.add(new Hit(bx, cy + 5, 48, 18, H_PLOAD, p, 0, 1));
-            cy += 33;
+        int ly = ay + fh + 14, viewH = py + ph - ly - 12;
+        Fonts.MEDIUM.draw(ctx, "Active: " + Config.currentProfile, ax + 2, ly - 2, 8f, a(0x8A8F98, ta));
+        ly += 14; viewH -= 14;
+        ctx.enableScissor(Math.round(ax * ui), Math.round(ly * ui), Math.round((ax + aw) * ui), Math.round((ly + viewH) * ui));
+        int cy = ly - profScroll;
+        if (ps.isEmpty()) Fonts.MEDIUM.drawCentered(ctx, "No profiles yet", ax + aw / 2f, ly + 28, 9f, a(0x8A8F98, ta));
+        for (String pn : ps) {
+            boolean act = pn.equals(Config.currentProfile);
+            Draw.roundRect(ctx, ax, cy, aw, 30, 8, a(0xFFFFFF, act ? 0x22 : 0x14));
+            Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(pn, aw - 150, 9.5f), ax + 12, cy + 10, 9.5f, a(0xF2F2F5, ta));
+            int bx = ax + aw - 8 - 52;
+            Draw.roundRect(ctx, bx, cy + 5, 52, 20, 6, a(0xFFFFFF, 0x18));
+            Fonts.MEDIUM.drawCentered(ctx, "Delete", bx + 26, cy + 10, 8f, a(0xFF8A8A, ta));
+            hits.add(new Hit(bx, cy + 5, 52, 20, H_PDEL, pn, 0, 1));
+            bx -= 58;
+            Draw.roundRect(ctx, bx, cy + 5, 52, 20, 6, a(0xFFFFFF, 0x24));
+            Fonts.MEDIUM.drawCentered(ctx, "Load", bx + 26, cy + 10, 8f, a(0xF2F2F5, ta));
+            hits.add(new Hit(bx, cy + 5, 52, 20, H_PLOAD, pn, 0, 1));
+            cy += 36;
         }
         ctx.disableScissor();
-        overlayMax = Math.max(0, cy + overlayScroll - (ly + viewH));
-        if (overlayScroll > overlayMax) overlayScroll = overlayMax;
     }
 
     // ================= ввод =================
-    private static boolean in(float mx, float my, float x, float y, float w, float h) {
-        return mx >= x && mx <= x + w && my >= y && my <= y + h;
+    private static boolean inside(int mx, int my, int x, int y, int w, int h) {
+        return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
     private static String keyName(int key) {
@@ -509,41 +447,37 @@ public class ClickMenuScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
-        float mx = (float) click.x() / sc, my = (float) click.y() / sc;
+        int mx = Math.round((float) click.x() / ui), my = Math.round((float) click.y() / ui);
         int btn = click.button();
         int bit = btn == 0 ? 1 : btn == 1 ? 2 : 4;
         searching = false; typingProfile = false;
-        boolean inContent = in(mx, my, cx0, cy0, cw0, ch0);
 
         for (int i = hits.size() - 1; i >= 0; i--) {
             Hit h = hits.get(i);
-            if (!in(mx, my, h.x, h.y, h.w, h.h)) continue;
+            if (!inside(mx, my, h.x, h.y, h.w, h.h)) continue;
             if ((h.mask & bit) == 0) {
-                if (h.type == H_NOP || h.type == H_OVER_CLOSE) return true;
+                if (h.type == H_PBODY || h.type == H_PROFBODY || h.type == H_PCLOSE || h.type == H_PROFCLOSE) return true;
                 continue;
             }
-            boolean contentHit = h.type == H_CARD || h.type == H_SLIDER || h.type == H_MODE || h.type == H_COLOR || h.type == H_BOOL;
-            if (contentHit && (!inContent || overlay != Overlay.NONE)) continue;
             switch (h.type) {
-                case H_NOP -> { return true; }
-                case H_OVER_CLOSE -> { overlay = Overlay.NONE; overlayScroll = 0; typingProfile = false; return true; }
-                case H_DRAG -> { draggingWin = true; dragOffX = mx - wx; dragOffY = my - winY; return true; }
-                case H_CLOSE -> { this.close(); return true; }
-                case H_TAB -> { tab = (Integer) h.a; search = ""; scrollAnim.snap(TSCROLL[tab]); return true; }
+                case H_PBODY, H_PROFBODY -> { return true; }
+                case H_PCLOSE -> { popup = null; popScroll = 0; return true; }
+                case H_PROFCLOSE -> { profilesOpen = false; typingProfile = false; return true; }
+                case H_TAB -> { tab = (Integer) h.a; search = ""; return true; }
                 case H_SEARCH -> {
-                    if (!search.isEmpty() && mx > h.x + h.w - 20) search = ""; else searching = true;
+                    if (!search.isEmpty() && mx > h.x + h.w - 22) search = ""; else searching = true;
                     return true;
                 }
                 case H_PROF -> {
                     int id = (Integer) h.a;
-                    if (id == 1) { if (btn == 1) Theme.prev(); else Theme.next(); }
-                    else { overlay = Overlay.PROFILES; overlayScroll = 0; }
+                    if (id == 1) profilesOpen = true;
+                    else { if (btn == 1) Theme.prev(); else Theme.next(); }
                     return true;
                 }
                 case H_CARD -> {
                     Module m = (Module) h.a;
                     if (btn == 2) binding = m;
-                    else if (btn == 1) { if (!m.getSettings().isEmpty()) OPEN.put(m, !OPEN.getOrDefault(m, false)); else binding = m; }
+                    else if (btn == 1) { if (!m.getSettings().isEmpty()) { popup = m; popScroll = 0; } else binding = m; }
                     else m.toggle();
                     return true;
                 }
@@ -559,7 +493,7 @@ public class ClickMenuScreen extends Screen {
                 }
                 case H_SLIDER -> {
                     dragging = (NumSetting) h.a;
-                    float[] d = dragXFor.get(dragging);
+                    float[] d = dragFor.get(dragging);
                     dragX = d != null ? d[0] : h.x + 5;
                     dragW = d != null ? d[1] : h.w - 10;
                     applyDrag(mx);
@@ -568,12 +502,12 @@ public class ClickMenuScreen extends Screen {
                 case H_PNAME -> { typingProfile = true; return true; }
                 case H_PSAVE -> {
                     String n = profileName.trim();
-                    if (n.isEmpty()) { toast("Введите имя профиля"); typingProfile = true; return true; }
-                    if (Config.saveProfile(n)) { toast("Профиль «" + n + "» сохранён"); profileName = ""; } else toast("Не удалось сохранить");
+                    if (n.isEmpty()) { toast("Enter a profile name"); typingProfile = true; return true; }
+                    if (Config.saveProfile(n)) { toast("Saved \"" + n + "\""); profileName = ""; } else toast("Save failed");
                     return true;
                 }
-                case H_PLOAD -> { String n = (String) h.a; toast(Config.loadProfile(n) ? "Загружен «" + n + "»" : "Ошибка загрузки"); return true; }
-                case H_PDEL -> { String n = (String) h.a; Config.deleteProfile(n); toast("Удалён «" + n + "»"); return true; }
+                case H_PLOAD -> { String n = (String) h.a; toast(Config.loadProfile(n) ? "Loaded \"" + n + "\"" : "Load failed"); return true; }
+                case H_PDEL -> { String n = (String) h.a; Config.deleteProfile(n); toast("Deleted \"" + n + "\""); return true; }
                 default -> { return true; }
             }
         }
@@ -588,19 +522,24 @@ public class ClickMenuScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click c, double dx, double dy) {
-        float mx = (float) c.x() / sc, my = (float) c.y() / sc;
-        if (dragging != null) { applyDrag(mx); return true; }
-        if (draggingWin) { winX = mx - dragOffX; winY = my - dragOffY; return true; }
+        if (dragging != null) { applyDrag(c.x() / ui); return true; }
         return true;
     }
 
     @Override
-    public boolean mouseReleased(Click c) { dragging = null; draggingWin = false; return true; }
+    public boolean mouseReleased(Click c) { dragging = null; return true; }
 
     @Override
     public boolean mouseScrolled(double x, double y, double h, double v) {
-        if (overlay != Overlay.NONE) { overlayScroll = (float) Math.max(0, Math.min(overlayMax, overlayScroll - v * 24)); return true; }
-        TSCROLL[tab] = (float) Math.max(0, Math.min(scrollMax, TSCROLL[tab] - v * 28));
+        if (popup != null) {
+            popScroll = (int) Math.max(0, popScroll - v * 16);
+            int total = 0;
+            for (Setting<?> s : popup.getSettings()) total += s instanceof NumSetting ? 34 : 26;
+            popScroll = Math.min(popScroll, Math.max(0, total + 62 - popH(popup)));
+            return true;
+        }
+        if (profilesOpen) { profScroll = (int) Math.max(0, profScroll - v * 18); return true; }
+        TSCROLL[tab] = (int) Math.max(0, Math.min(maxScroll(cards().size()), TSCROLL[tab] - v * 14));
         return true;
     }
 
@@ -628,12 +567,13 @@ public class ClickMenuScreen extends Screen {
             else if (k == 256) typingProfile = false;
             else if (k == 257) {
                 String n = profileName.trim();
-                if (!n.isEmpty() && Config.saveProfile(n)) { toast("Профиль «" + n + "» сохранён"); profileName = ""; }
+                if (!n.isEmpty() && Config.saveProfile(n)) { toast("Saved \"" + n + "\""); profileName = ""; }
                 typingProfile = false;
             }
             return true;
         }
-        if (k == 256 && overlay != Overlay.NONE) { overlay = Overlay.NONE; overlayScroll = 0; return true; }
+        if (k == 256 && popup != null) { popup = null; popScroll = 0; return true; }
+        if (k == 256 && profilesOpen) { profilesOpen = false; return true; }
         if (k == 344 || k == 256) { this.close(); return true; }
         if (k == 70 && (input.modifiers() & 2) != 0) { searching = true; return true; }
         return super.keyPressed(input);

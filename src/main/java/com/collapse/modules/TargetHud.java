@@ -56,59 +56,51 @@ public class TargetHud extends Module {
         float vis = Anim.ease(show.get());
         if (vis < 0.02f || last == null) return;
 
-        int acc = Theme.accent(), acc2 = Theme.accent2();
-        float pw = 142, ph = 44;
-        float x = w / 2f + 22, y = h / 2f + 20 + (1 - vis) * 8;
+        float pw = 150, ph = 46;
+        float x = w / 2f + 24, y = h / 2f + 20 + (1 - vis) * 8;
 
-        // подложка
-        Draw.shadow(ctx, x, y, pw, ph, 8, 12);
-        Draw.glow(ctx, x, y, pw, ph, 6, Draw.alpha(Theme.withAlpha(acc, 24), vis));
-        Draw.roundRect(ctx, x, y, pw, ph, 11, Draw.alpha(0xE60B0B12, vis));
-        Draw.ring(ctx, x, y, pw, ph, 11, Draw.alpha(0x22FFFFFF, vis));
+        // матовая плашка как в Glass Menu
+        Draw.roundRect(ctx, x, y, pw, ph, 8, Draw.alpha(0x16FFFFFF, vis));
+        Draw.roundRect(ctx, x + 1, y + 1, pw - 2, ph - 2, 7, Draw.alpha(0xD00F0F14, vis));
 
-        // голова скина с рамкой
-        float fs = 30;
-        float fx = x + 7, fy = y + 7;
-        Draw.roundRect(ctx, fx - 1.5f, fy - 1.5f, fs + 3, fs + 3, 8, Draw.alpha(acc, vis * 0.9f));
-        Draw.roundRect(ctx, fx, fy, fs, fs, 7, Draw.alpha(0xFF14141C, vis));
+        // голова скина
+        float fs = 32, fx = x + 7, fy = y + 7;
+        Draw.roundRect(ctx, fx - 1, fy - 1, fs + 2, fs + 2, 6, Draw.alpha(0x30FFFFFF, vis));
         boolean face = false;
         try {
             if (last instanceof net.minecraft.entity.player.PlayerEntity pl && mc.getNetworkHandler() != null) {
                 var entry = mc.getNetworkHandler().getPlayerListEntry(pl.getUuid());
                 if (entry != null) {
-                    net.minecraft.client.gui.PlayerSkinDrawer.draw(ctx, entry.getSkinTextures(), Math.round(fx + 1), Math.round(fy + 1), Math.round(fs - 2));
+                    net.minecraft.client.gui.PlayerSkinDrawer.draw(ctx, entry.getSkinTextures(), Math.round(fx), Math.round(fy), Math.round(fs));
                     face = true;
                 }
             }
         } catch (Throwable ignored) {}
         if (!face) {
             String nm = last.getName().getString();
-            Fonts.HEAD.drawCentered(ctx, nm.isEmpty() ? "?" : nm.substring(0, 1).toUpperCase(), fx + fs / 2, fy + 8, 13f, Draw.alpha(acc, vis));
+            Draw.roundRect(ctx, fx, fy, fs, fs, 5, Draw.alpha(0x20FFFFFF, vis));
+            Fonts.HEAD.drawCentered(ctx, nm.isEmpty() ? "?" : nm.substring(0, 1).toUpperCase(), fx + fs / 2, fy + 9, 14f, Draw.alpha(0xFFF2F2F5, vis));
         }
 
-        // имя и дистанция
-        float tx = fx + fs + 9;
+        float tx = fx + fs + 10;
         String name = last.getName().getString();
-        Fonts.BOLD.draw(ctx, Fonts.BOLD.fit(name, pw - (tx - x) - 8, 9.5f), tx, y + 8, 9.5f, Draw.alpha(0xFFFFFFFF, vis));
+        Fonts.MEDIUM.draw(ctx, Fonts.MEDIUM.fit(name, pw - (tx - x) - 44, 10f), tx, y + 8, 10f, Draw.alpha(0xFFF2F2F5, vis));
         double dist = mc.player != null ? mc.player.distanceTo(last) : 0;
         int armor = last.getArmor();
-        String sub = String.format(java.util.Locale.US, "%.1f m", dist) + (armor > 0 ? "  ·  " + armor + " arm" : "");
-        Fonts.MEDIUM.draw(ctx, sub, tx, y + 20, 7.3f, Draw.alpha(0xFF8E8EA6, vis));
+        String sub = String.format(java.util.Locale.US, "%.1f m", dist) + (armor > 0 ? "   " + armor + " armor" : "");
+        Fonts.MEDIUM.draw(ctx, sub, tx, y + 21, 7.5f, Draw.alpha(0xFF8A8F98, vis));
 
-        // HP-бар
         float max = Math.max(1f, last.getMaxHealth());
         float frac = Math.max(0, Math.min(1, last.getHealth() / max));
         hp.set(frac); trail.set(frac);
         float cur = hp.get(), tr = Math.max(cur, trail.get());
-        float bx = tx, by = y + ph - 11, bw = pw - (tx - x) - 8;
-        Draw.roundRect(ctx, bx, by, bw, 5, 2.5f, Draw.alpha(0xFF1F1F2A, vis));
-        Draw.roundRect(ctx, bx, by, Math.max(5, bw * tr), 5, 2.5f, Draw.alpha(0xFFFFFFFF, vis * 0.30f));
-        int hc = Theme.mix(0xFFFF4466, acc, cur);
-        Draw.gradientH(ctx, bx, by, Math.max(5, bw * cur), 5, Draw.alpha(hc, vis), Draw.alpha(Theme.mix(hc, acc2, 0.5f), vis));
-        // золотые сердца поверх
+        float bx = tx, by = y + ph - 11, bw = pw - (tx - x) - 10;
+        Draw.roundRect(ctx, bx, by, bw, 4, 2, Draw.alpha(0x22FFFFFF, vis));
+        Draw.roundRect(ctx, bx, by, Math.max(4, bw * tr), 4, 2, Draw.alpha(0x40FFFFFF, vis));
+        int hc = cur > 0.6f ? 0xFF7CFFB2 : cur > 0.3f ? 0xFFFFD36E : 0xFFFF6F6F;
+        Draw.roundRect(ctx, bx, by, Math.max(4, bw * cur), 4, 2, Draw.alpha(hc, vis));
         float abs = last.getAbsorptionAmount();
-        if (abs > 0) Draw.roundRect(ctx, bx, by + 5.6f, Math.min(bw, bw * abs / max), 1.6f, 0.8f, Draw.alpha(0xFFFFC857, vis));
-        String hs = String.format(java.util.Locale.US, "%.1f", last.getHealth());
-        Fonts.BOLD.drawRight(ctx, hs, x + pw - 8, y + 8, 8.5f, Draw.alpha(hc, vis));
+        if (abs > 0) Draw.roundRect(ctx, bx, by + 5, Math.min(bw, bw * abs / max), 1.5f, 0.75f, Draw.alpha(0xFFFFD36E, vis));
+        Fonts.MEDIUM.drawRight(ctx, String.format(java.util.Locale.US, "%.1f", last.getHealth()), x + pw - 9, y + 8, 9f, Draw.alpha(hc, vis));
     }
 }

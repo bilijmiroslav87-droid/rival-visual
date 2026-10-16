@@ -17,6 +17,16 @@ public final class Draw {
     private static final Identifier SHADOW = Identifier.of("collapse-client", "ui/shadow.png");
     private static final Identifier GLOW = Identifier.of("collapse-client", "ui/glow.png");
 
+    /** Линейная интерполяция ARGB-цветов. */
+    public static int lerpArgb(int a, int b, float t) {
+        t = Math.max(0f, Math.min(1f, t));
+        int aa = (int) (((a >>> 24) & 0xFF) * (1 - t) + ((b >>> 24) & 0xFF) * t);
+        int ar = (int) (((a >> 16) & 0xFF) * (1 - t) + ((b >> 16) & 0xFF) * t);
+        int ag = (int) (((a >> 8) & 0xFF) * (1 - t) + ((b >> 8) & 0xFF) * t);
+        int ab = (int) ((a & 0xFF) * (1 - t) + (b & 0xFF) * t);
+        return (aa << 24) | (ar << 16) | (ag << 8) | ab;
+    }
+
     /** Иконка из ui/icon_<name>.png (белая, красится тинтом). */
     public static void icon(DrawContext ctx, String name, float cx, float cy, float size, int color) {
         if (((color >>> 24) & 0xFF) == 0) return;

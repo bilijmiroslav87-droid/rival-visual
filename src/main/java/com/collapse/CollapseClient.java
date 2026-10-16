@@ -21,7 +21,7 @@ import java.util.Map;
 public class CollapseClient implements ClientModInitializer {
     public static final String MOD_ID = "collapse-client";
     public static final String NAME = "Collapse Client";
-    public static final String VERSION = "0.10.0";
+    public static final String VERSION = "0.11.0";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private static KeyBinding menuKey;
@@ -33,13 +33,17 @@ public class CollapseClient implements ClientModInitializer {
         try { Fonts.init(); } catch (Throwable t) { LOGGER.error("Fonts init failed", t); }
         ModuleManager.init();
         try { Config.load(); } catch (Throwable t) { LOGGER.error("Config load failed", t); }
-        // Водянка и уведомления включены по умолчанию
-        if (!java.nio.file.Files.exists(net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir().resolve("collapse-client.properties"))) {
-            for (String n : new String[]{"Watermark", "Notifications", "TargetHUD", "Cosmetics", "Potions"}) {
-                Module m = ModuleManager.byName(n);
-                if (m != null) m.setEnabled(true);
+        // При первом запуске новой версии включаем базовые модули (один раз на версию)
+        try {
+            java.nio.file.Path mark = net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir().resolve("collapse-client.seen-" + VERSION);
+            if (!java.nio.file.Files.exists(mark)) {
+                for (String n : new String[]{"Watermark", "Notifications", "TargetHUD", "Aura", "Potions"}) {
+                    Module m = ModuleManager.byName(n);
+                    if (m != null) m.setEnabled(true);
+                }
+                java.nio.file.Files.writeString(mark, "ok");
             }
-        }
+        } catch (Throwable t) { LOGGER.error("Default modules init failed", t); }
 
         menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.collapse.menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, KeyBinding.Category.MISC));

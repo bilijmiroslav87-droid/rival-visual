@@ -53,6 +53,7 @@ public final class ModuleManager {
         register(new InfoHud());
         register(new Watermark());
         register(new Notifications());
+        register(new ParticleCosmetics());
         register(new Cosmetics());
         // Player
         register(new AutoTotem());
